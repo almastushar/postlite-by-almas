@@ -1,0 +1,19 @@
+{
+  "name": "Postlite — API Client",
+  "short_name": "Postlite",
+  "description": "Self-contained, no-install API client that runs in your browser and follows your VPN routing.",
+  "start_url": "postlite.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#0e0f13",
+  "theme_color": "#0e0f13",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

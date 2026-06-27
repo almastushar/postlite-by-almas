@@ -1,0 +1,1527 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Postlite — API client</title>
+<meta name="application-name" content="Postlite">
+<meta name="theme-color" content="#0e0f13">
+<meta name="color-scheme" content="dark">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Postlite">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230e0f13'/%3E%3Ccircle cx='21' cy='32' r='6.5' fill='%23ffb000'/%3E%3Ctext x='32' y='41' font-family='monospace' font-size='25' font-weight='700' fill='%23e7e9ef'%3EP%3C/text%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230e0f13'/%3E%3Ccircle cx='21' cy='32' r='6.5' fill='%23ffb000'/%3E%3Ctext x='32' y='41' font-family='monospace' font-size='25' font-weight='700' fill='%23e7e9ef'%3EP%3C/text%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#0e0f13; --panel:#15171d; --panel-2:#1b1e26; --line:#262a35;
+    --ink:#e7e9ef; --muted:#8a90a2; --faint:#5b6172;
+    --amber:#ffb000; --amber-dim:#3a2e10;
+    --teal:#27d3c4; --red:#ff5d5d; --green:#5fd07a; --blue:#5aa9ff; --purple:#b98bff;
+    --radius:7px;
+    --mono:ui-monospace,"SF Mono","Cascadia Code","JetBrains Mono",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:13px;overflow:hidden}
+  button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:#2a2f3b;border-radius:6px}
+  ::-webkit-scrollbar-track{background:transparent}
+
+  .app{display:flex;height:100vh}
+  /* Zoom scales the CONTENT inside panels (text, tabs, components) via --z,
+     while panel boxes and the window stay the same size; overflow just scrolls. */
+  .brand,.env-bar,.tabs,.side-actions,.side-body,
+  .tabbar,.urlbar,.reqtabs,.panes,
+  .resp-head,.resp-tabs,.resp-body,
+  .modal,.toast{ zoom:var(--z,1); }
+  .split-col{flex:0 0 5px;cursor:col-resize;background:var(--line)}
+  .split-col:hover,.split-col.drag{background:var(--amber)}
+  /* ---- Sidebar ---- */
+  .side{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;width:268px;min-width:197px;max-width:460px;flex:0 0 auto}
+  .brand{display:flex;align-items:center;gap:9px;padding:11px 14px;border-bottom:1px solid var(--line)}
+  .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--amber);box-shadow:0 0 10px var(--amber)}
+  .brand b{letter-spacing:.5px;font-weight:650}
+  .zoomctl{margin-left:auto;display:flex;align-items:center;gap:4px}
+  .zoomctl button{width:20px;height:20px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);border-radius:5px;cursor:pointer;line-height:1;font-size:13px}
+  .zoomctl button:hover{border-color:var(--amber)}
+  .zoomctl span{font-family:var(--mono);font-size:10px;color:var(--muted);min-width:30px;text-align:center}
+  .tabs{display:flex;border-bottom:1px solid var(--line)}
+  .tabs button{flex:1;background:none;border:0;color:var(--muted);padding:7px 4px;cursor:pointer;border-bottom:2px solid transparent;font-size:11px;letter-spacing:.3px}
+  .tabs button.on{color:var(--ink);border-bottom-color:var(--amber)}
+  .side-body{flex:1;overflow:auto;min-height:0}
+  .side-actions{display:flex;gap:5px;padding:7px 8px;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+  .env-bar{display:flex;align-items:center;gap:7px;padding:6px 9px;border-bottom:1px solid var(--line);background:var(--panel-2)}
+  .env-bar select{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:5px 7px;font-size:12px}
+
+  .btn{background:var(--panel-2);border:1px solid var(--line);color:var(--ink);padding:6px 10px;border-radius:var(--radius);cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+  .btn:hover{border-color:#39404f}
+  .btn.amber{background:var(--amber);color:#1a1300;border-color:var(--amber);font-weight:600}
+  .btn.amber:hover{filter:brightness(1.05)}
+  .btn.ghost{background:none}
+  .btn.sm{padding:4px 8px;font-size:11.5px}
+  .btn.icon{padding:5px 7px}
+
+  .tree{padding:3px 3px;font-size:12px}
+  .tree .empty{color:var(--faint);padding:14px 12px;line-height:1.55;font-size:11.5px}
+  .folder>.row{font-weight:600;color:var(--muted)}
+  .node .row{display:flex;align-items:center;gap:6px;padding:2px 6px;border-radius:5px;cursor:pointer;user-select:none;line-height:1.35}
+  .node .row:hover{background:var(--panel-2)}
+  .node .row.active{background:var(--amber-dim)}
+  .meth{font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.3px;min-width:32px}
+  .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;flex:1 1 auto;min-width:0}
+  .coll>.row .name{font-size:12.5px}
+  .children{margin-left:9px;border-left:1px solid var(--line);padding-left:3px}
+  .twist{color:var(--faint);width:9px;flex:0 0 auto;display:inline-block;text-align:center;font-size:10px}
+  .row .del{color:var(--faint);border:0;background:none;cursor:pointer;font-size:11px;padding:1px 3px;flex:0 0 auto;display:none}
+  .row:hover .del{display:inline-flex}
+
+  /* ---- Main ---- */
+  .main{display:flex;flex-direction:column;min-width:0;min-height:0;flex:1 1 auto}
+  .workspace{flex:1;display:flex;flex-direction:column;min-height:0;min-width:0}
+  .workspace.row-layout{flex-direction:row}
+  .editor{flex:1 1 auto;display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden}
+  .splitter{flex:0 0 6px;background:var(--line);cursor:row-resize}
+  .workspace.row-layout .splitter{cursor:col-resize}
+  .splitter:hover,.splitter.drag{background:var(--amber)}
+  .tabbar{display:flex;align-items:stretch;gap:0;background:var(--panel);border-bottom:1px solid var(--line);overflow-x:auto;overflow-y:hidden;min-height:38px}
+  .tabbar::-webkit-scrollbar{height:0}
+  .tab{display:flex;align-items:center;gap:7px;padding:0 9px 0 12px;border-right:1px solid var(--line);cursor:pointer;color:var(--muted);max-width:200px;white-space:nowrap;position:relative}
+  .tab.on{background:var(--bg);color:var(--ink)}
+  .tab.on::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--amber)}
+  .tab:hover{color:var(--ink)}
+  .tab .tmeth{font-family:var(--mono);font-size:9.5px;font-weight:700}
+  .tab .tname{overflow:hidden;text-overflow:ellipsis;max-width:120px;font-size:12px}
+  .tab .tdot{color:var(--amber);font-size:9px;line-height:1}
+  .tab .tclose{background:none;border:0;color:var(--faint);cursor:pointer;font-size:12px;padding:2px 3px;border-radius:4px;line-height:1}
+  .tab .tclose:hover{background:var(--panel-2);color:var(--ink)}
+  .tabadd{background:none;border:0;border-right:1px solid var(--line);color:var(--muted);cursor:pointer;padding:0 13px;font-size:16px}
+  .tabadd:hover{color:var(--ink);background:var(--panel-2)}
+  .urlbar{display:flex;gap:8px;padding:12px;border-bottom:1px solid var(--line);align-items:center;flex-wrap:wrap}
+  .urlbar .url{min-width:140px}
+  .method-wrap{position:relative}
+  select.method{appearance:none;background:var(--panel-2);border:1px solid var(--line);border-radius:var(--radius);padding:9px 30px 9px 12px;font-family:var(--mono);font-weight:700;cursor:pointer}
+  .method-wrap::after{content:"▾";position:absolute;right:11px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none}
+  .url{flex:1;background:var(--panel-2);border:1px solid var(--line);border-radius:var(--radius);padding:9px 12px;font-family:var(--mono);font-size:12.5px}
+  .url:focus{outline:none;border-color:var(--amber)}
+  .reqtabs{display:flex;gap:2px;padding:0 12px;border-bottom:1px solid var(--line);overflow:auto}
+  .reqtabs button{background:none;border:0;color:var(--muted);padding:10px 12px;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
+  .reqtabs button.on{color:var(--ink);border-bottom-color:var(--amber)}
+  .reqtabs .badge{font-family:var(--mono);font-size:9px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:0 5px;margin-left:5px}
+  .panes{flex:1;min-height:0;display:flex;flex-direction:column}
+  .pane{display:none;flex:1;overflow:auto;padding:12px}
+  .pane.on{display:block}
+
+  table.kv{width:100%;border-collapse:collapse}
+  table.kv th{text-align:left;color:var(--faint);font-weight:500;font-size:11px;padding:4px 6px}
+  table.kv td{padding:2px 4px}
+  table.kv input[type=text]{width:100%;background:var(--panel-2);border:1px solid var(--line);border-radius:6px;padding:6px 8px;font-family:var(--mono);font-size:12px}
+  table.kv input[type=text]:focus{outline:none;border-color:var(--amber)}
+  table.kv .chk{width:26px;text-align:center}
+  table.kv .x{width:30px;text-align:center}
+  .x button{background:none;border:0;color:var(--faint);cursor:pointer}
+
+  textarea.code{width:100%;min-height:240px;background:var(--panel-2);border:1px solid var(--line);border-radius:var(--radius);padding:11px;font-family:var(--mono);font-size:12.5px;line-height:1.55;resize:vertical;tab-size:2}
+  textarea.code:focus{outline:none;border-color:var(--amber)}
+  .bodytype{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+  .seg{display:flex;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  .seg button{background:var(--panel-2);border:0;color:var(--muted);padding:6px 11px;cursor:pointer;border-right:1px solid var(--line)}
+  .seg button:last-child{border-right:0}
+  .seg button.on{background:var(--amber);color:#1a1300;font-weight:600}
+  .hint{color:var(--faint);font-size:11.5px;line-height:1.6;margin:6px 2px}
+  .hint code{font-family:var(--mono);color:var(--amber)}
+
+  /* ---- Response ---- */
+  .resp{background:var(--panel);display:flex;flex-direction:column;min-height:0;min-width:0;flex:0 0 auto;flex-basis:42%;overflow:hidden}
+  .resp-head{display:flex;align-items:center;gap:14px;padding:9px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .pill{font-family:var(--mono);font-size:11.5px;padding:3px 9px;border-radius:20px;border:1px solid var(--line)}
+  .pill.ok{color:var(--green);border-color:#27452f}
+  .pill.warn{color:var(--amber);border-color:#4a3a12}
+  .pill.err{color:var(--red);border-color:#4a2222}
+  .stat{color:var(--muted);font-family:var(--mono);font-size:11.5px}
+  .stat b{color:var(--ink);font-weight:600}
+  .resp-tabs{display:flex;gap:2px;padding:0 14px;border-bottom:1px solid var(--line)}
+  .resp-tabs button{background:none;border:0;color:var(--muted);padding:8px 10px;cursor:pointer;border-bottom:2px solid transparent}
+  .resp-tabs button.on{color:var(--ink);border-bottom-color:var(--teal)}
+  .resp-body{flex:1;overflow:auto;min-height:0}
+  .resp-pane{display:none;padding:12px 14px}
+  .resp-pane.on{display:block}
+  pre.out{margin:0;font-family:var(--mono);font-size:12.5px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+  .resp-empty{color:var(--faint);padding:26px 14px;text-align:center}
+  .test-row{display:flex;align-items:center;gap:9px;padding:7px 9px;border:1px solid var(--line);border-radius:6px;margin-bottom:6px;font-family:var(--mono);font-size:12px}
+  .test-row .tag{font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px}
+  .test-row.pass .tag{background:#16331f;color:var(--green)}
+  .test-row.fail .tag{background:#341818;color:var(--red)}
+  .clog{font-family:var(--mono);font-size:12px;line-height:1.5;padding:5px 8px;border-bottom:1px solid var(--line);white-space:pre-wrap;word-break:break-word}
+  .clog .lv{color:var(--faint);margin-right:8px}
+  .clog.error{color:var(--red)} .clog.warn{color:var(--amber)}
+
+  /* ---- Modal ---- */
+  .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:50}
+  .modal-bg.on{display:flex}
+  .modal{background:var(--panel);border:1px solid var(--line);border-radius:10px;width:min(620px,92vw);max-height:86vh;display:flex;flex-direction:column;overflow:hidden}
+  .modal h3{margin:0;padding:14px 16px;border-bottom:1px solid var(--line);font-weight:600;display:flex;align-items:center}
+  .modal h3 .close{margin-left:auto;background:none;border:0;color:var(--muted);cursor:pointer;font-size:18px}
+  .modal .mbody{padding:16px;overflow:auto}
+  .modal .mfoot{padding:12px 16px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end}
+  .field{margin-bottom:12px}
+  .field label{display:block;color:var(--muted);margin-bottom:5px;font-size:12px}
+  .field input,.field textarea{width:100%;background:var(--panel-2);border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-family:var(--mono)}
+  .field input:focus,.field textarea:focus{outline:none;border-color:var(--amber)}
+  .msub{margin:18px 0 8px;color:var(--amber);font-size:12px;letter-spacing:.4px;text-transform:uppercase;font-weight:600;border-top:1px solid var(--line);padding-top:14px}
+  .auth-sel{background:var(--panel-2);border:1px solid var(--line);border-radius:var(--radius);padding:8px 10px;max-width:260px;width:100%}
+
+  .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--panel-2);border:1px solid var(--line);border-left:3px solid var(--amber);padding:10px 16px;border-radius:8px;opacity:0;transition:.25s;z-index:99;max-width:80vw}
+  .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+  .cors-note{background:var(--amber-dim);border:1px solid #4a3a12;border-radius:var(--radius);padding:9px 11px;margin:10px 12px 0;color:#e9d9b0;font-size:11.5px;line-height:1.55}
+  .cors-note b{color:var(--amber)}
+  .row-tools{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .muted{color:var(--muted)}
+  a{color:var(--teal)}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="side" id="side">
+    <div class="brand"><span class="dot"></span><b>POSTLITE</b>
+      <div class="zoomctl">
+        <button id="zoomOut" title="Zoom out">−</button>
+        <span id="zoomLbl">100%</span>
+        <button id="zoomIn" title="Zoom in">+</button>
+      </div>
+    </div>
+    <div class="env-bar">
+      <span class="muted" style="font-size:11px">ENV</span>
+      <select id="envSelect"></select>
+      <button class="btn icon sm" id="editEnvBtn" title="Manage environments">⚙</button>
+    </div>
+    <div class="tabs">
+      <button data-view="collections" class="on">Collections</button>
+      <button data-view="history">History</button>
+    </div>
+    <div class="side-actions" id="collActions">
+      <button class="btn sm" id="newReqBtn">+ Request</button>
+      <button class="btn sm" id="newCollBtn">+ Collection</button>
+      <button class="btn sm" id="importCollBtn" title="Import a Postman collection or environment (.json)">Import</button>
+      <button class="btn sm" id="importCurlBtn">cURL</button>
+    </div>
+    <div class="side-body">
+      <div id="treeWrap" class="tree"></div>
+      <div id="historyWrap" class="tree" style="display:none"></div>
+    </div>
+  </aside>
+  <div class="split-col" id="sideSplit" title="Drag to resize"></div>
+
+  <!-- ============ MAIN ============ -->
+  <section class="main">
+    <div class="tabbar" id="tabBar"></div>
+    <div class="workspace" id="workspace">
+    <div class="editor" id="editor">
+    <div class="urlbar">
+      <div class="method-wrap">
+        <select class="method" id="method">
+          <option>GET</option><option>POST</option><option>PUT</option>
+          <option>PATCH</option><option>DELETE</option><option>HEAD</option><option>OPTIONS</option>
+        </select>
+      </div>
+      <input class="url" id="url" placeholder="https://api.example.com/v1/resource   —   use {{base_url}} for env vars" spellcheck="false">
+      <button class="btn amber" id="sendBtn">Send ▸</button>
+      <button class="btn" id="saveReqBtn" title="Save into a collection">Save</button>
+      <button class="btn" id="curlOutBtn" title="Copy this request as cURL">&lt;/&gt; cURL</button>
+      <button class="btn" id="proxyBtn" title="Local CORS proxy (run in any normal browser)">Proxy: off</button>
+    </div>
+
+    <div class="reqtabs" id="reqTabs">
+      <button data-tab="params" class="on">Params <span class="badge" id="paramsBadge">0</span></button>
+      <button data-tab="headers">Headers <span class="badge" id="headersBadge">0</span></button>
+      <button data-tab="auth">Auth <span class="badge" id="authBadge"></span></button>
+      <button data-tab="body">Body</button>
+      <button data-tab="pre">Pre-request</button>
+      <button data-tab="post">Post-request</button>
+      <button data-tab="tests">Tests</button>
+    </div>
+
+    <div class="panes">
+      <div class="pane on" data-pane="params">
+        <div class="row-tools"><span class="muted">Query parameters — appended to the URL</span><button class="btn sm" id="addParam">+ Add</button></div>
+        <table class="kv" id="paramsTable"><thead><tr><th class="chk"></th><th>Key</th><th>Value</th><th class="x"></th></tr></thead><tbody></tbody></table>
+      </div>
+
+      <div class="pane" data-pane="headers">
+        <div class="row-tools"><span class="muted">Request headers</span><button class="btn sm" id="addHeader">+ Add</button></div>
+        <table class="kv" id="headersTable"><thead><tr><th class="chk"></th><th>Key</th><th>Value</th><th class="x"></th></tr></thead><tbody></tbody></table>
+      </div>
+
+      <div class="pane" data-pane="auth">
+        <div class="row-tools"><span class="muted">Authorization for this request</span></div>
+        <div id="authHost"></div>
+      </div>
+
+      <div class="pane" data-pane="body">
+        <div class="bodytype">
+          <div class="seg" id="bodySeg">
+            <button data-bt="none" class="on">None</button>
+            <button data-bt="json">JSON</button>
+            <button data-bt="raw">Raw</button>
+            <button data-bt="form">x-www-form</button>
+          </div>
+          <button class="btn sm ghost" id="prettyBtn">Beautify JSON</button>
+        </div>
+        <textarea class="code" id="bodyText" placeholder='{ "key": "value" }' spellcheck="false"></textarea>
+        <table class="kv" id="formTable" style="display:none"><thead><tr><th class="chk"></th><th>Key</th><th>Value</th><th class="x"></th></tr></thead><tbody></tbody></table>
+        <button class="btn sm" id="addForm" style="display:none;margin-top:8px">+ Add field</button>
+      </div>
+
+      <div class="pane" data-pane="pre">
+        <p class="hint">Runs <b>before</b> the request. Set variables, build auth, timestamps. Example:<br>
+        <code>pm.environment.set("ts", Date.now())</code> &nbsp;·&nbsp; <code>pm.variables.get("base_url")</code></p>
+        <textarea class="code" id="preScript" spellcheck="false" placeholder="// pre-request script"></textarea>
+      </div>
+
+      <div class="pane" data-pane="post">
+        <p class="hint">Runs <b>after</b> the response, before Tests. Use it to capture values, transform data, or log. Example:<br>
+        <code>const j = pm.response.json(); pm.environment.set("token", j.access_token)</code> &nbsp;·&nbsp; <code>console.log(pm.response.code)</code></p>
+        <textarea class="code" id="postScript" spellcheck="false" placeholder="// post-request script"></textarea>
+      </div>
+
+      <div class="pane" data-pane="tests">
+        <p class="hint">Runs <b>after</b> the response. For assertions. Example:<br>
+        <code>pm.test("status is 200", () =&gt; pm.expect(pm.response.code).to.equal(200))</code></p>
+        <textarea class="code" id="testScript" spellcheck="false" placeholder="// tests script"></textarea>
+      </div>
+    </div>
+    </div><!-- /.editor -->
+
+    <div class="splitter" id="respSplit" title="Drag to resize"></div>
+
+    <!-- ===== RESPONSE ===== -->
+    <div class="resp" id="resp">
+      <div class="resp-head">
+        <span id="statusPill" class="pill" style="display:none"></span>
+        <span class="stat" id="timeStat"></span>
+        <span class="stat" id="sizeStat"></span>
+        <span id="respHint" class="muted" style="font-size:11.5px">Send a request to see the response here.</span>
+        <div style="margin-left:auto;display:flex;gap:6px">
+          <button class="btn sm ghost" id="copyRespBtn" title="Copy response">⎘ Copy</button>
+          <button class="btn sm ghost" id="layoutBtn" title="Toggle response layout">⬍</button>
+        </div>
+      </div>
+      <div class="resp-tabs">
+        <button data-rt="body" class="on">Body</button>
+        <button data-rt="headers">Headers <span class="badge" id="rhBadge"></span></button>
+        <button data-rt="tests">Test results <span class="badge" id="trBadge"></span></button>
+        <button data-rt="console">Console <span class="badge" id="cBadge"></span></button>
+      </div>
+      <div class="resp-body">
+        <div class="resp-pane on" data-rp="body"><div class="resp-empty" id="bodyEmpty">No response yet.</div><pre class="out" id="respBody"></pre></div>
+        <div class="resp-pane" data-rp="headers"><pre class="out" id="respHeaders"></pre></div>
+        <div class="resp-pane" data-rp="tests"><div id="respTests"></div></div>
+        <div class="resp-pane" data-rp="console"><div id="respConsole"></div></div>
+      </div>
+    </div>
+    </div><!-- /.workspace -->
+  </section>
+</div>
+
+<!-- ===== Modal + hidden file input + toast ===== -->
+<div class="modal-bg" id="modalBg"><div class="modal" id="modal"></div></div>
+<input type="file" id="fileInput" accept=".json,application/json" style="display:none">
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+/* =========================================================
+   Postlite — single-file API client. All data lives in
+   localStorage on THIS machine. Requests go through the
+   browser, so they follow your system/VPN routing.
+   ========================================================= */
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const uid = () => Math.random().toString(36).slice(2,10);
+const LS = {
+  get:(k,d)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},
+  set:(k,v)=>localStorage.setItem(k,JSON.stringify(v))
+};
+
+/* ---------- State ---------- */
+// collections: [{id, name, items:[ request | {id,name,items:[]} ]}]
+let collections = LS.get('PL_collections', null);
+if(!collections){
+  // migrate from the old single-collection format if present
+  const old = LS.get('PL_collection', null);
+  collections = old ? [{id:uid(), name:(old.info&&old.info.name)||'My Collection', items:old.items||[]}]
+                    : [{id:uid(), name:'My Collection', items:[]}];
+}
+let environments = LS.get('PL_envs', {});      // {name:{vars:{k:v}}}
+let activeEnv = LS.get('PL_activeEnv', '');
+let globals = LS.get('PL_globals', {});
+let history = LS.get('PL_history', []);
+let lastResponse = null;
+// optional local CORS proxy (lets internal/VPN APIs work in a normal browser)
+let proxy = LS.get('PL_proxy', {on:false, url:'http://localhost:8010'});
+// UI state: panel sizes (as fractions), response layout, and zoom
+let ui = LS.get('PL_ui', {sideFrac:0.2, respFrac:0.42, layout:'col', zoom:1});
+function persistUI(){ LS.set('PL_ui', ui); }
+function applyUI(){
+  $('#side').style.width=(ui.sideFrac*100)+'%';
+  $('#resp').style.flexBasis=(ui.respFrac*100)+'%';
+  $('#workspace').classList.toggle('row-layout', ui.layout==='row');
+  $('#layoutBtn').textContent = ui.layout==='row' ? '⬌' : '⬍';
+  document.documentElement.style.setProperty('--z', ui.zoom||1);
+  $('#zoomLbl').textContent = Math.round((ui.zoom||1)*100)+'%';
+}
+
+// ---- Tabs: each tab is an independent working request ----
+// tab = {id, req, srcId, dirty}  ·  srcId = id of the saved collection item it mirrors (or null)
+let tabs = LS.get('PL_tabs', null);
+let activeTabId = LS.get('PL_activeTab', null);
+if(!tabs || !tabs.length){
+  const seed = LS.get('PL_current', null);            // migrate any previous single request
+  tabs = [ newTab(seed || blankRequest(), null) ];
+}
+if(!activeTabId || !tabs.find(t=>t.id===activeTabId)) activeTabId = tabs[0].id;
+let current = activeTab().req;   // `current` always references the active tab's request
+
+function newTab(req, srcId){ return {id:uid(), req:req||blankRequest(), srcId:srcId||null, dirty:false}; }
+function activeTab(){ return tabs.find(t=>t.id===activeTabId) || tabs[0]; }
+
+function blankRequest(){
+  return {id:uid(), name:'Untitled', method:'GET', url:'', params:[], headers:[],
+          bodyType:'none', bodyText:'', form:[], pre:'', post:'', tests:'', auth:{type:'inherit'}};
+}
+function persist(){
+  LS.set('PL_collections',collections); LS.set('PL_envs',environments);
+  LS.set('PL_activeEnv',activeEnv); LS.set('PL_globals',globals);
+  LS.set('PL_history',history.slice(0,50));
+  LS.set('PL_tabs',tabs); LS.set('PL_activeTab',activeTabId); LS.set('PL_proxy',proxy);
+}
+// mark the active tab as having unsaved edits
+function touch(){ const t=activeTab(); if(t && !t.dirty){ t.dirty=true; renderTabs(); } persist(); }
+
+/* ---------- Toast ---------- */
+let toastT;
+function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('on');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('on'),2200);}
+
+/* ====================================================
+   VARIABLE RESOLUTION  {{var}}
+   ==================================================== */
+function mergedCollVars(){ const o={}; collections.forEach(c=>Object.assign(o, c.vars||{})); return o; }
+function scopeVars(){
+  const env = (environments[activeEnv]&&environments[activeEnv].vars)||{};
+  // precedence (low → high): collection variables, globals, active environment
+  return Object.assign({}, mergedCollVars(), globals, env);
+}
+function resolve(str){
+  if(typeof str!=='string') return str;
+  const v = scopeVars();
+  return str.replace(/\{\{\s*([\w.-]+)\s*\}\}/g, (m,k)=> (k in v? v[k] : m));
+}
+
+/* ====================================================
+   KEY/VALUE TABLE RENDERING (params, headers, form)
+   ==================================================== */
+function renderKV(tableSel, list, onChange){
+  const tb = $(tableSel+' tbody'); tb.innerHTML='';
+  list.forEach((row,i)=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td class="chk"><input type="checkbox" ${row.on!==false?'checked':''}></td>
+      <td><input type="text" placeholder="key" value="${esc(row.key||'')}"></td>
+      <td><input type="text" placeholder="value" value="${esc(row.value||'')}"></td>
+      <td class="x"><button title="remove">✕</button></td>`;
+    const [chk,k,val]=tr.querySelectorAll('input');
+    chk.onchange=()=>{row.on=chk.checked;onChange()};
+    k.oninput=()=>{row.key=k.value;onChange()};
+    val.oninput=()=>{row.value=val.value;onChange()};
+    tr.querySelector('button').onclick=()=>{list.splice(i,1);renderKV(tableSel,list,onChange);onChange()};
+    tb.appendChild(tr);
+  });
+}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function activeCount(list){return list.filter(r=>r.on!==false&&(r.key||'').trim()).length}
+
+/* ====================================================
+   LOAD current request -> UI  /  UI -> current
+   ==================================================== */
+function loadToUI(){
+  $('#method').value=current.method;
+  $('#url').value=current.url;
+  renderKV('#paramsTable',current.params,syncParams);
+  renderKV('#headersTable',current.headers,syncHeaders);
+  renderKV('#formTable',current.form,()=>{touch()});
+  $('#bodyText').value=current.bodyText||'';
+  $('#preScript').value=current.pre||'';
+  $('#postScript').value=current.post||'';
+  $('#testScript').value=current.tests||'';
+  setBodyType(current.bodyType||'none',false);
+  if(!current.auth) current.auth={type:'inherit'};
+  buildAuthUI($('#authHost'), current.auth, ()=>{ updateAuthBadge(); touch(); }, true, activeTab().srcId);
+  updateAuthBadge();
+  updateBadges();
+  syncTreeActive();
+}
+function updateAuthBadge(){
+  const t=(current.auth&&current.auth.type)||'inherit';
+  const map={inherit:'',noauth:'',bearer:'Bearer',basic:'Basic',apikey:'Key'};
+  $('#authBadge').textContent=map[t]||'';
+}
+function syncParams(){updateBadges();touch()}
+function syncHeaders(){updateBadges();touch()}
+function updateBadges(){
+  $('#paramsBadge').textContent=activeCount(current.params);
+  $('#headersBadge').textContent=activeCount(current.headers);
+}
+
+/* body type segmented control */
+function setBodyType(bt,save=true){
+  current.bodyType=bt;
+  $$('#bodySeg button').forEach(b=>b.classList.toggle('on',b.dataset.bt===bt));
+  const isForm = bt==='form';
+  $('#bodyText').style.display = (bt==='none'||isForm)?'none':'block';
+  $('#formTable').style.display = isForm?'table':'none';
+  $('#addForm').style.display = isForm?'inline-flex':'none';
+  if(bt==='json') $('#bodyText').placeholder='{ "key": "value" }';
+  if(bt==='raw') $('#bodyText').placeholder='raw body (text, xml, ...)';
+  if(save)touch();
+}
+
+/* ====================================================
+   AUTHORIZATION
+   ==================================================== */
+const AUTH_TYPES=[['inherit','Inherit from parent'],['noauth','No Auth'],['bearer','Bearer Token'],['basic','Basic Auth'],['apikey','API Key']];
+// Render an auth editor into `host`; mutates `auth` in place and calls onChange()
+function buildAuthUI(host, auth, onChange, allowInherit, ctxSrcId){
+  host.innerHTML='';
+  const sel=document.createElement('select'); sel.className='auth-sel';
+  AUTH_TYPES.filter(([v])=>allowInherit||v!=='inherit').forEach(([v,l])=>{
+    const o=document.createElement('option'); o.value=v; o.textContent=l;
+    if((auth.type||(allowInherit?'inherit':'noauth'))===v)o.selected=true; sel.appendChild(o); });
+  const fields=document.createElement('div'); fields.style.marginTop='12px';
+  host.appendChild(sel); host.appendChild(fields);
+  function af(label,key,ph){
+    const w=document.createElement('div'); w.className='field';
+    w.innerHTML=`<label>${esc(label)}</label>`;
+    const i=document.createElement('input'); i.type='text'; i.value=auth[key]||''; if(ph)i.placeholder=ph;
+    i.oninput=()=>{ auth[key]=i.value; onChange(); }; w.appendChild(i); return w;
+  }
+  function renderFields(){
+    const t=auth.type||(allowInherit?'inherit':'noauth'); fields.innerHTML='';
+    if(t==='inherit'){ const p=document.createElement('p'); p.className='hint';
+      p.innerHTML='Uses auth from the parent folder or collection. '+inheritNote(ctxSrcId); fields.appendChild(p); }
+    else if(t==='noauth'){ const p=document.createElement('p'); p.className='hint'; p.textContent='No authorization will be sent.'; fields.appendChild(p); }
+    else if(t==='bearer'){ fields.appendChild(af('Token','token','e.g. {{token}}'));
+      const h=document.createElement('p'); h.className='hint'; h.innerHTML='Sent as <code>Authorization: Bearer &lt;token&gt;</code>. Reference a variable like <code>{{token}}</code>.'; fields.appendChild(h); }
+    else if(t==='basic'){ fields.appendChild(af('Username','username','')); fields.appendChild(af('Password','password','')); }
+    else if(t==='apikey'){ fields.appendChild(af('Key','key','e.g. X-API-Key')); fields.appendChild(af('Value','value','e.g. {{apiKey}}'));
+      const w=document.createElement('div'); w.className='field'; w.innerHTML='<label>Add to</label>';
+      const s2=document.createElement('select'); s2.className='auth-sel';
+      [['header','Header'],['query','Query parameter']].forEach(([v,l])=>{const o=document.createElement('option');o.value=v;o.textContent=l;if((auth.in||'header')===v)o.selected=true;s2.appendChild(o);});
+      s2.onchange=()=>{auth.in=s2.value;onChange();}; w.appendChild(s2); fields.appendChild(w); }
+  }
+  sel.onchange=()=>{ auth.type=sel.value; onChange(); renderFields(); };
+  renderFields();
+}
+function inheritNote(srcId){
+  if(srcId===undefined) return '';
+  const a=resolveInheritedAuth(srcId);
+  if(!a) return 'Currently nothing to inherit (not inside a collection/folder that defines auth).';
+  const label=({bearer:'Bearer Token',basic:'Basic Auth',apikey:'API Key',noauth:'No Auth'})[a.type]||a.type;
+  return 'Currently inheriting: <b>'+label+'</b>.';
+}
+// walk collections to find the chain of containers (collection + folders) above an item
+function pathToItem(srcId){
+  if(!srcId) return null;
+  for(const col of collections){ const chain=[]; if(searchPath(col.items, srcId, chain)) return [col].concat(chain); }
+  return null;
+}
+function searchPath(items, id, chain){
+  for(const it of items){
+    if(it.items){ chain.push(it); if(searchPath(it.items,id,chain)) return true; chain.pop(); }
+    else if(it.id===id) return true;
+  }
+  return false;
+}
+function resolveInheritedAuth(srcId){
+  const path=pathToItem(srcId); if(!path) return null;
+  for(let i=path.length-1;i>=0;i--){ const a=path[i].auth; if(a && a.type && a.type!=='inherit') return a; }
+  return null;
+}
+function effectiveAuth(req, srcId){
+  let a=req.auth||{type:'inherit'};
+  if(a.type==='inherit') a=resolveInheritedAuth(srcId)||{type:'noauth'};
+  return a;
+}
+// apply auth to headers; returns extra query params for apikey-in-query
+function applyAuth(a, headers){
+  const extra=[];
+  if(!a||a.type==='noauth'||a.type==='inherit') return extra;
+  if(a.type==='bearer'){ if(!hasHeader(headers,'authorization')) headers['Authorization']='Bearer '+resolve(a.token||''); }
+  else if(a.type==='basic'){ if(!hasHeader(headers,'authorization'))
+      headers['Authorization']='Basic '+btoa(unescape(encodeURIComponent(resolve(a.username||'')+':'+resolve(a.password||'')))); }
+  else if(a.type==='apikey'){ const k=resolve(a.key||''), v=resolve(a.value||''); if(!k) return extra;
+      if((a.in||'header')==='query') extra.push({key:k,value:v});
+      else if(!hasHeader(headers,k.toLowerCase())) headers[k]=v; }
+  return extra;
+}
+// Postman v2.1 auth <-> Postlite auth
+function kvArr(arr){ const o={}; (arr||[]).forEach(x=>{ o[x.key]=x.value; }); return o; }
+function fromPMAuth(a){
+  if(!a||!a.type) return null;
+  if(a.type==='noauth') return {type:'noauth'};
+  if(a.type==='bearer'){ const m=kvArr(a.bearer); return {type:'bearer', token:m.token||''}; }
+  if(a.type==='basic'){ const m=kvArr(a.basic); return {type:'basic', username:m.username||'', password:m.password||''}; }
+  if(a.type==='apikey'){ const m=kvArr(a.apikey); return {type:'apikey', key:m.key||'', value:m.value||'', in:m.in||'header'}; }
+  return null;
+}
+function toPMAuth(a){
+  if(!a||a.type==='inherit') return undefined;
+  if(a.type==='noauth') return {type:'noauth'};
+  if(a.type==='bearer') return {type:'bearer', bearer:[{key:'token',value:a.token||'',type:'string'}]};
+  if(a.type==='basic') return {type:'basic', basic:[{key:'username',value:a.username||''},{key:'password',value:a.password||''}]};
+  if(a.type==='apikey') return {type:'apikey', apikey:[{key:'key',value:a.key||''},{key:'value',value:a.value||''},{key:'in',value:a.in||'header'}]};
+}
+
+/* ====================================================
+   BUILD + SEND
+   ==================================================== */
+function buildUrl(){
+  let u = resolve(current.url.trim());
+  const qp = current.params.filter(p=>p.on!==false&&(p.key||'').trim())
+              .map(p=>encodeURIComponent(resolve(p.key))+'='+encodeURIComponent(resolve(p.value||'')));
+  if(qp.length){ u += (u.includes('?')?'&':'?') + qp.join('&'); }
+  return u;
+}
+function buildHeaders(){
+  const h={};
+  current.headers.filter(x=>x.on!==false&&(x.key||'').trim())
+    .forEach(x=>{h[resolve(x.key)]=resolve(x.value||'')});
+  return h;
+}
+function buildBody(headers){
+  const bt=current.bodyType;
+  if(bt==='none'||current.method==='GET'||current.method==='HEAD') return undefined;
+  if(bt==='json'){ if(!hasHeader(headers,'content-type')) headers['Content-Type']='application/json'; return resolve(current.bodyText); }
+  if(bt==='raw'){ return resolve(current.bodyText); }
+  if(bt==='form'){
+    if(!hasHeader(headers,'content-type')) headers['Content-Type']='application/x-www-form-urlencoded';
+    return current.form.filter(f=>f.on!==false&&(f.key||'').trim())
+      .map(f=>encodeURIComponent(resolve(f.key))+'='+encodeURIComponent(resolve(f.value||''))).join('&');
+  }
+}
+function hasHeader(h,name){return Object.keys(h).some(k=>k.toLowerCase()===name)}
+
+async function send(){
+  pullUI();
+  const consoleLogs=[]; const testResults=[];
+  // ---- pre-request script ----
+  try{ runScript(current.pre, {phase:'pre', logs:consoleLogs}); }
+  catch(e){ consoleLogs.push({level:'error',msg:'Pre-request: '+e.message}); }
+
+  let url=buildUrl();
+  const headers=buildHeaders();
+  const body=buildBody(headers);
+  // authorization (resolves inheritance + variables)
+  const auth=effectiveAuth(current, activeTab().srcId);
+  const authQuery=applyAuth(auth, headers);
+  if(authQuery.length){ url += (url.includes('?')?'&':'?') +
+    authQuery.map(p=>encodeURIComponent(p.key)+'='+encodeURIComponent(p.value)).join('&'); }
+  if(!url){ toast('Enter a URL first'); return; }
+
+  const pill=$('#statusPill');
+  $('#sendBtn').textContent='…'; $('#sendBtn').disabled=true;
+  $('#respHint').textContent='Sending…';
+  const t0=performance.now();
+  let res, text='', err=null;
+  try{
+    let fetchUrl=url, fetchHeaders=headers;
+    if(proxy.on && proxy.url){
+      fetchHeaders=Object.assign({}, headers, {'X-PL-Target':url}); // proxy reads target from header
+      fetchUrl=proxy.url;
+    }
+    res = await fetch(fetchUrl,{method:current.method,headers:fetchHeaders,body,redirect:'follow'});
+    text = await res.text();
+  }catch(e){ err=e; }
+  const ms=Math.round(performance.now()-t0);
+  $('#sendBtn').textContent='Send ▸'; $('#sendBtn').disabled=false;
+
+  if(err){
+    showError(err,ms,url); 
+    pushHistory(url,null,ms);
+    persist(); return;
+  }
+
+  // response object for tests
+  const respHeaders={}; res.headers.forEach((v,k)=>respHeaders[k]=v);
+  lastResponse={code:res.status,status:res.statusText,headers:respHeaders,text,responseTime:ms};
+
+  // ---- post-request script (general processing) ----
+  try{ runScript(current.post, {phase:'test', logs:consoleLogs, tests:testResults}); }
+  catch(e){ consoleLogs.push({level:'error',msg:'Post-request: '+e.message}); }
+
+  // ---- tests script (assertions) ----
+  try{ runScript(current.tests, {phase:'test', logs:consoleLogs, tests:testResults}); }
+  catch(e){ consoleLogs.push({level:'error',msg:'Tests: '+e.message}); }
+
+  renderResponse(res,text,ms,respHeaders,testResults,consoleLogs);
+  pushHistory(url,res.status,ms);
+  persist();
+}
+
+function showError(err,ms,url){
+  $('#respHint').textContent='';
+  const pill=$('#statusPill'); pill.style.display='inline-block';
+  pill.className='pill err'; pill.textContent='Failed';
+  $('#timeStat').innerHTML='<b>'+ms+'</b> ms';
+  $('#sizeStat').textContent='';
+  $('#bodyEmpty').style.display='none';
+  let msg = err.message||String(err);
+  let extra='';
+  if(/Failed to fetch|NetworkError|load failed/i.test(msg)){
+    if(proxy.on){
+      extra='\n\nProxy mode is ON but the request to '+proxy.url+' failed.\n'+
+            '• Make sure the local proxy is running (double-click Proxy.bat, or run: python proxy.py).\n'+
+            '• Check the proxy URL matches the port it printed (default http://localhost:8010).\n'+
+            '• The proxy must run on the machine that has the VPN, so it can reach the host.';
+    } else {
+      extra='\n\nThis is almost always a CORS or network block, not a bug in the request.\n'+
+            '• The target API didn\'t return CORS headers (browsers enforce this; Postman desktop does not).\n'+
+            '• Or the host is unreachable on your current network/VPN.\n\n'+
+            'Easiest fix — turn on the local proxy (the "Proxy" button up top): runs in any normal\n'+
+            'browser, no Chrome flag or profile needed. Start it with Proxy.bat / python proxy.py.\n\n'+
+            'Alternatives:\n'+
+            '  • Open Postlite in a Chrome/Edge app window launched with --disable-web-security.\n'+
+            '  • Confirm the VPN is up and the host resolves (try the URL in a normal browser tab).';
+    }
+  }
+  $('#respBody').textContent='✕ '+msg+extra;
+  switchResp('body');
+}
+
+function renderResponse(res,text,ms,headers,tests,logs){
+  $('#respHint').textContent='';
+  const pill=$('#statusPill'); pill.style.display='inline-block';
+  pill.textContent=res.status+' '+(res.statusText||'');
+  pill.className='pill '+(res.status<300?'ok':res.status<400?'warn':'err');
+  $('#timeStat').innerHTML='<b>'+ms+'</b> ms';
+  const bytes=new Blob([text]).size;
+  $('#sizeStat').innerHTML='<b>'+formatBytes(bytes)+'</b>';
+
+  // body
+  $('#bodyEmpty').style.display='none';
+  const ct=(headers['content-type']||'');
+  let pretty=text;
+  if(/json/i.test(ct)||looksJson(text)){ try{ pretty=JSON.stringify(JSON.parse(text),null,2); }catch(e){} }
+  $('#respBody').textContent=pretty;
+
+  // headers
+  $('#respHeaders').textContent=Object.entries(headers).map(([k,v])=>k+': '+v).join('\n')||'(none)';
+  $('#rhBadge').textContent=Object.keys(headers).length;
+
+  // tests
+  const tw=$('#respTests'); tw.innerHTML='';
+  if(!tests.length) tw.innerHTML='<div class="resp-empty">No tests defined.</div>';
+  tests.forEach(t=>{
+    const d=document.createElement('div');
+    d.className='test-row '+(t.pass?'pass':'fail');
+    d.innerHTML=`<span class="tag">${t.pass?'PASS':'FAIL'}</span><span>${esc(t.name)}</span>`+
+      (t.err?`<span class="muted" style="margin-left:auto">${esc(t.err)}</span>`:'');
+    tw.appendChild(d);
+  });
+  const fails=tests.filter(t=>!t.pass).length;
+  $('#trBadge').textContent=tests.length?(tests.length-fails)+'/'+tests.length:'';
+
+  // console
+  const cw=$('#respConsole'); cw.innerHTML='';
+  if(!logs.length) cw.innerHTML='<div class="resp-empty">Console is empty.</div>';
+  logs.forEach(l=>{
+    const d=document.createElement('div');
+    d.className='clog '+(l.level||'log');
+    d.innerHTML='<span class="lv">'+(l.level||'log')+'</span>'+esc(l.msg);
+    cw.appendChild(d);
+  });
+  $('#cBadge').textContent=logs.length||'';
+  switchResp('body');
+}
+function looksJson(t){t=t.trim();return t.startsWith('{')||t.startsWith('[')}
+function formatBytes(b){return b<1024?b+' B':b<1048576?(b/1024).toFixed(1)+' KB':(b/1048576).toFixed(2)+' MB'}
+
+/* ====================================================
+   pm.* SCRIPT SANDBOX
+   ==================================================== */
+function makeStore(obj){
+  return {
+    get:k=>obj[k], set:(k,v)=>{obj[k]=v;persist()}, has:k=>k in obj,
+    unset:k=>{delete obj[k];persist()}, clear:()=>{Object.keys(obj).forEach(k=>delete obj[k]);persist()},
+    toObject:()=>Object.assign({},obj)
+  };
+}
+function makeExpect(actual){
+  // Build a chai-like chain WITHOUT spreading (spread would invoke getters early).
+  function matchers(neg){
+    const flip = c => neg ? !c : c;
+    const tail = neg?' not':'';
+    const o = {
+      equal:e=>assert(flip(actual===e), `expected ${j(actual)}${tail} to equal ${j(e)}`),
+      eql:e=>assert(flip(j(actual)===j(e)), `expected ${j(actual)}${tail} to deeply equal ${j(e)}`),
+      include:e=>assert(flip(String(actual).includes(e)), `expected ${j(actual)}${tail} to include ${j(e)}`),
+      above:n=>assert(flip(actual>n), `expected ${j(actual)}${tail} to be above ${n}`),
+      below:n=>assert(flip(actual<n), `expected ${j(actual)}${tail} to be below ${n}`),
+      least:n=>assert(flip(actual>=n), `expected ${j(actual)}${tail} to be at least ${n}`),
+      a:t=>assert(flip(typeof actual===t), `expected ${j(actual)}${tail} to be a ${t}`),
+      status:c=>assert(flip(actual===c), `expected status ${j(actual)}${tail} to be ${c}`),
+      property:k=>assert(flip(!!actual && Object.prototype.hasOwnProperty.call(actual,k)), `expected${tail} to have property ${j(k)}`)
+    };
+    // getters defined non-enumerable so Object.assign / iteration never trips them
+    Object.defineProperty(o,'ok',{get(){assert(flip(!!actual), `expected ${j(actual)}${tail} to be ok`);return o;}});
+    Object.defineProperty(o,'true',{get(){assert(flip(actual===true), `expected ${j(actual)}${tail} to be true`);return o;}});
+    Object.defineProperty(o,'null',{get(){assert(flip(actual===null), `expected ${j(actual)}${tail} to be null`);return o;}});
+    Object.defineProperty(o,'undefined',{get(){assert(flip(actual===undefined), `expected ${j(actual)}${tail} to be undefined`);return o;}});
+    return o;
+  }
+  const to  = matchers(false);  // supports to.equal(...) directly
+  const not = matchers(true);
+  to.be = to; to.have = to;     // to.be.equal / to.have.status both resolve to `to`
+  not.be = not; not.have = not;
+  to.not = not;
+  return { to };
+}
+function assert(cond,msg){ if(!cond) throw new Error(msg); return true; }
+function j(v){try{return JSON.stringify(v)}catch(e){return String(v)}}
+
+function runScript(code, ctx){
+  if(!code||!code.trim()) return;
+  const logs=ctx.logs, tests=ctx.tests;
+  const console2={
+    log:(...a)=>logs.push({level:'log',msg:a.map(fmt).join(' ')}),
+    info:(...a)=>logs.push({level:'log',msg:a.map(fmt).join(' ')}),
+    warn:(...a)=>logs.push({level:'warn',msg:a.map(fmt).join(' ')}),
+    error:(...a)=>logs.push({level:'error',msg:a.map(fmt).join(' ')})
+  };
+  const envObj=(environments[activeEnv]&&environments[activeEnv].vars)||{};
+  const collStore={ get:k=>mergedCollVars()[k], has:k=>k in mergedCollVars(),
+    set:(k,v)=>{ globals[k]=v; persist(); }, unset:k=>{ delete globals[k]; persist(); },
+    toObject:()=>mergedCollVars() };
+  const pm={
+    environment:makeStore(envObj),
+    globals:makeStore(globals),
+    collectionVariables:collStore,
+    variables:{ get:k=>scopeVars()[k], replaceIn:s=>resolve(s) },
+    expect:makeExpect,
+    test:(name,fn)=>{ try{ fn(); tests&&tests.push({name,pass:true}); }
+                      catch(e){ tests&&tests.push({name,pass:false,err:e.message}); } },
+    request:{ method:current.method, url:resolve(current.url),
+              headers:buildHeaders() },
+  };
+  if(ctx.phase==='test' && lastResponse){
+    pm.response={
+      code:lastResponse.code, status:lastResponse.status,
+      responseTime:lastResponse.responseTime, headers:lastResponse.headers,
+      text:()=>lastResponse.text,
+      json:()=>JSON.parse(lastResponse.text),
+      to:makeExpect(lastResponse.code).to
+    };
+  }
+  // eslint-disable-next-line no-new-func
+  const fn=new Function('pm','console', '"use strict";\n'+code);
+  fn(pm,console2);
+}
+function fmt(x){return typeof x==='string'?x:j(x)}
+
+/* ====================================================
+   HISTORY
+   ==================================================== */
+function pushHistory(url,status,ms){
+  history.unshift({id:uid(),method:current.method,url,status,ms,at:Date.now(),
+    snapshot:JSON.parse(JSON.stringify(current))});
+  history=history.slice(0,50);
+}
+function renderHistory(){
+  const w=$('#historyWrap'); w.innerHTML='';
+  if(!history.length){w.innerHTML='<div class="empty">No requests sent yet.<br>Your history appears here.</div>';return;}
+  history.forEach(h=>{
+    const node=document.createElement('div'); node.className='node';
+    const col=h.status==null?'var(--red)':h.status<300?'var(--green)':h.status<400?'var(--amber)':'var(--red)';
+    node.innerHTML=`<div class="row"><span class="meth" style="color:${methodColor(h.method)}">${h.method}</span>
+      <span class="name" title="${esc(h.url)}">${esc(h.url.replace(/^https?:\/\//,''))}</span></div>`;
+    node.querySelector('.row').onclick=()=>{ const r=JSON.parse(JSON.stringify(h.snapshot)); r.id=uid(); openInTab(r,null); toast('Loaded from history'); };
+    w.appendChild(node);
+  });
+}
+
+/* ====================================================
+   TABS
+   ==================================================== */
+function renderTabs(){
+  const bar=$('#tabBar'); bar.innerHTML='';
+  tabs.forEach(t=>{
+    const el=document.createElement('div'); el.className='tab'+(t.id===activeTabId?' on':'');
+    el.innerHTML=`<span class="tmeth" style="color:${methodColor(t.req.method)}">${t.req.method}</span>
+      <span class="tname" title="${esc(t.req.name||'Untitled')}">${esc(t.req.name||'Untitled')}</span>
+      ${t.dirty?'<span class="tdot" title="unsaved changes">●</span>':''}
+      <button class="tclose" title="close tab">✕</button>`;
+    el.onclick=e=>{ if(e.target.classList.contains('tclose'))return; switchTab(t.id); };
+    el.querySelector('.tclose').onclick=e=>{ e.stopPropagation(); closeTab(t.id); };
+    bar.appendChild(el);
+  });
+  const add=document.createElement('button'); add.className='tabadd'; add.textContent='+'; add.title='New tab';
+  add.onclick=newBlankTab; bar.appendChild(add);
+}
+function switchTab(id){ pullUI(); activeTabId=id; current=activeTab().req; persist(); renderTabs(); loadToUI(); }
+function newBlankTab(){ const t=newTab(blankRequest(),null); tabs.push(t); activeTabId=t.id; current=t.req; persist(); renderTabs(); loadToUI(); }
+async function closeTab(id){
+  const idx=tabs.findIndex(t=>t.id===id); if(idx<0) return;
+  if(tabs[idx].dirty){ if(!await confirmModal('Close this tab? Unsaved changes will be lost.','Close')) return; }
+  tabs.splice(idx,1);
+  if(!tabs.length) tabs.push(newTab(blankRequest(),null));
+  if(activeTabId===id) activeTabId=tabs[Math.min(idx,tabs.length-1)].id;
+  current=activeTab().req; persist(); renderTabs(); loadToUI();
+}
+// open a saved item (or a free request) in a tab; focus existing tab if already open
+function openInTab(req, srcId){
+  if(srcId){ const ex=tabs.find(t=>t.srcId===srcId);
+    if(ex){ activeTabId=ex.id; current=ex.req; persist(); renderTabs(); loadToUI(); return; } }
+  const t=newTab(req, srcId||null); tabs.push(t); activeTabId=t.id; current=t.req;
+  persist(); renderTabs(); loadToUI();
+}
+// Save: update the source item in place, or open the save dialog for a brand-new request
+function saveActive(){
+  pullUI();
+  const t=activeTab();
+  if(t.srcId){
+    const item=findItemById(collections, t.srcId);
+    if(item){
+      const copy=JSON.parse(JSON.stringify(t.req)); copy.id=t.srcId;
+      // overwrite the stored item's fields in place
+      Object.keys(item).forEach(k=>delete item[k]); Object.assign(item, copy);
+      t.dirty=false; persist(); renderTree(); renderTabs(); syncTreeActive();
+      toast('Saved “'+(t.req.name||'request')+'”'); return;
+    }
+  }
+  saveReqModal();   // no known source → choose collection/folder
+}
+function findItemById(cols, id){ for(const c of cols){ const f=findIn(c.items, id); if(f) return f; } return null; }
+function findIn(items, id){
+  for(const it of items){ if(it.items){ const r=findIn(it.items, id); if(r) return r; } else if(it.id===id) return it; }
+  return null;
+}
+function ensureIds(items){ (items||[]).forEach(it=>{ if(!it.id) it.id=uid(); if(it.items) ensureIds(it.items); }); }
+function syncTreeActive(){
+  const sid=activeTab().srcId;
+  $$('#treeWrap .row').forEach(r=>r.classList.toggle('active', !!sid && r.dataset.rid===sid));
+}
+
+/* ====================================================
+   COLLECTION TREE
+   ==================================================== */
+function methodColor(m){return {GET:'var(--green)',POST:'var(--amber)',PUT:'var(--blue)',PATCH:'var(--purple)',DELETE:'var(--red)',HEAD:'var(--muted)',OPTIONS:'var(--muted)'}[m]||'var(--muted)'}
+function renderTree(){
+  const w=$('#treeWrap'); w.innerHTML='';
+  if(!collections.length){
+    w.innerHTML='<div class="empty">No collections yet.<br>Create one with <b>+ Collection</b>, or <b>Import</b> a Postman collection.</div>';
+    return;
+  }
+  collections.forEach((col,ci)=>{
+    const node=document.createElement('div'); node.className='node folder coll';
+    node.innerHTML=`<div class="row">
+      <span class="twist">▾</span>
+      <span class="name" title="${esc(col.name)}"><b>${esc(col.name)}</b></span>
+      <button class="del" data-a="set" title="Variables &amp; auth">⚙</button>
+      <button class="del" data-a="addf" title="New folder">＋</button>
+      <button class="del" data-a="exp" title="Export collection">⤓</button>
+      <button class="del" data-a="delc" title="Delete collection">✕</button></div>`;
+    const kids=document.createElement('div'); kids.className='children';
+    if(col.items.length) kids.appendChild(renderItems(col.items));
+    else kids.innerHTML='<div class="empty" style="padding:7px 10px">Empty — Save a request here or add a folder.</div>';
+    const tw=node.querySelector('.twist');
+    node.querySelector('.row').onclick=e=>{ if(e.target.tagName==='BUTTON')return;
+      const open=kids.style.display!=='none'; kids.style.display=open?'none':'block'; tw.textContent=open?'▸':'▾'; };
+    node.querySelector('[data-a=set]').onclick=e=>{ e.stopPropagation(); collSettingsModal(col); };
+    node.querySelector('.name').ondblclick=async e=>{ e.stopPropagation();
+      const n=await askName('Rename collection','',col.name); if(n){ col.name=n; persist(); renderTree(); } };
+    node.querySelector('[data-a=addf]').onclick=async e=>{ e.stopPropagation();
+      const n=await askName('New folder in “'+col.name+'”','e.g. Auth'); if(n){col.items.push({id:uid(),name:n,items:[]});persist();renderTree();} };
+    node.querySelector('[data-a=exp]').onclick=e=>{ e.stopPropagation(); exportCollection(col); };
+    node.querySelector('[data-a=delc]').onclick=async e=>{ e.stopPropagation();
+      if(await confirmModal('Delete collection “'+col.name+'” and everything inside it?')){ collections.splice(ci,1); persist(); renderTree(); toast('Collection deleted'); } };
+    node.appendChild(kids); w.appendChild(node);
+  });
+  syncTreeActive();
+}
+function renderItems(items){
+  const frag=document.createElement('div');
+  items.forEach((it,idx)=>{
+    if(it.items){ // folder
+      const f=document.createElement('div'); f.className='node folder';
+      f.innerHTML=`<div class="row"><span class="twist">▸</span><span class="name" title="${esc(it.name||'Folder')}">${esc(it.name||'Folder')}</span>
+        <button class="del" data-a="set" title="Folder auth">⚙</button>
+        <button class="del" data-a="addsub" title="New subfolder">＋</button>
+        <button class="del" data-a="delx" title="Delete folder">✕</button></div>`;
+      const kids=document.createElement('div'); kids.className='children'; kids.style.display='none';
+      kids.appendChild(renderItems(it.items));
+      const tw=f.querySelector('.twist');
+      f.querySelector('.row').onclick=e=>{ if(e.target.tagName==='BUTTON')return;
+        const open=kids.style.display==='none'; kids.style.display=open?'block':'none'; tw.textContent=open?'▾':'▸'; };
+      f.querySelector('[data-a=set]').onclick=e=>{ e.stopPropagation(); folderSettingsModal(it); };
+      f.querySelector('.name').ondblclick=async e=>{ e.stopPropagation();
+        const n=await askName('Rename folder','',it.name); if(n){ it.name=n; persist(); renderTree(); } };
+      f.querySelector('[data-a=addsub]').onclick=async e=>{ e.stopPropagation();
+        const n=await askName('New subfolder in “'+(it.name||'Folder')+'”',''); if(n){it.items.push({id:uid(),name:n,items:[]});persist();renderTree();} };
+      f.querySelector('[data-a=delx]').onclick=async e=>{ e.stopPropagation();
+        if(await confirmModal('Delete folder “'+(it.name||'Folder')+'” and its contents?')){ items.splice(idx,1); persist(); renderTree(); } };
+      f.appendChild(kids); frag.appendChild(f);
+    }else{
+      const n=document.createElement('div'); n.className='node';
+      n.innerHTML=`<div class="row"><span class="meth" style="color:${methodColor(it.method)}">${it.method}</span>
+        <span class="name" title="${esc(it.name||'')}">${esc(it.name||'Untitled')}</span>
+        <button class="del" data-a="delx" title="Delete request">✕</button></div>`;
+      const row=n.querySelector('.row'); row.dataset.rid=it.id||'';
+      row.onclick=e=>{ if(e.target.tagName==='BUTTON')return;
+        openInTab(JSON.parse(JSON.stringify(it)), it.id); };
+      row.querySelector('.name').ondblclick=async e=>{ e.stopPropagation();
+        const nm=await askName('Rename request','',it.name);
+        if(nm){ it.name=nm; const t=tabs.find(x=>x.srcId===it.id); if(t)t.req.name=nm;
+          persist(); renderTree(); renderTabs(); if(activeTab().srcId===it.id) loadToUI(); } };
+      n.querySelector('[data-a=delx]').onclick=e=>{ e.stopPropagation(); items.splice(idx,1); persist(); renderTree(); syncTreeActive(); };
+      frag.appendChild(n);
+    }
+  });
+  return frag;
+}
+
+/* ====================================================
+   IMPORT / EXPORT  (Postman Collection v2.1)
+   ==================================================== */
+function importFile(text){
+  let data; try{ data=JSON.parse(text); }catch(e){ toast('Not valid JSON'); return; }
+  // environment file: has values[] and no item[]
+  if(data && Array.isArray(data.values) && !data.item){ importEnvironment(data); return; }
+  // collection file: has info + item
+  if(data && data.info && Array.isArray(data.item)){ importCollectionData(data); return; }
+  toast('Unrecognized — need a Postman collection or environment export');
+}
+function importCollection(json){
+  let data; try{ data=JSON.parse(json); }catch(e){ toast('Not valid JSON'); return; }
+  if(!data.info||!data.item){ toast('Not a Postman v2 collection'); return; }
+  importCollectionData(data);
+}
+function importCollectionData(data){
+  const vars={};
+  (data.variable||[]).forEach(v=>{ if(v && v.key!==undefined && v.disabled!==true) vars[v.key]=v.value; });
+  const col={id:uid(), name:data.info.name||'Imported', items:(data.item||[]).map(convertItem), vars};
+  const ca=fromPMAuth(data.auth); if(ca) col.auth=ca;
+  collections.push(col);
+  persist(); renderTree();
+  const vn=Object.keys(vars).length;
+  toast('Imported “'+(data.info.name||'collection')+'”'+(vn?(' · '+vn+' variable'+(vn>1?'s':'')):''));
+}
+function importEnvironment(data){
+  const name=data.name||'Imported Env';
+  const vars={};
+  (data.values||[]).forEach(v=>{ if(v && v.key!==undefined && v.enabled!==false) vars[v.key]=v.value; });
+  environments[name]={vars}; activeEnv=name;
+  persist(); refreshEnvSelect();
+  toast('Imported environment “'+name+'” · '+Object.keys(vars).length+' variable(s)');
+}
+function convertItem(it){
+  if(it.item){ const f={id:uid(), name:it.name, items:it.item.map(convertItem)};
+    const fa=fromPMAuth(it.auth); if(fa) f.auth=fa; return f; }
+  const r=it.request||{};
+  const req=blankRequest();
+  req.name=it.name||'Untitled';
+  req.method=(r.method||'GET').toUpperCase();
+  req.url = typeof r.url==='string'? r.url : (r.url&&r.url.raw)||'';
+  // auth: present → convert; absent → inherit (Postman default)
+  req.auth = fromPMAuth(r.auth) || {type:'inherit'};
+  // headers
+  req.headers=(r.header||[]).map(h=>({key:h.key,value:h.value,on:!h.disabled}));
+  // query
+  if(r.url&&r.url.query) req.params=r.url.query.map(q=>({key:q.key,value:q.value,on:!q.disabled}));
+  // body
+  if(r.body){
+    if(r.body.mode==='raw'){
+      req.bodyText=r.body.raw||'';
+      const lang=r.body.options&&r.body.options.raw&&r.body.options.raw.language;
+      req.bodyType = lang==='json'||looksJson(req.bodyText)?'json':'raw';
+    }else if(r.body.mode==='urlencoded'){
+      req.bodyType='form';
+      req.form=(r.body.urlencoded||[]).map(f=>({key:f.key,value:f.value,on:!f.disabled}));
+    }else if(r.body.mode==='formdata'){
+      req.bodyType='form';
+      req.form=(r.body.formdata||[]).map(f=>({key:f.key,value:f.value,on:!f.disabled}));
+    }
+  }
+  // scripts
+  (it.event||[]).forEach(ev=>{
+    const src=(ev.script&&(Array.isArray(ev.script.exec)?ev.script.exec.join('\n'):ev.script.exec))||'';
+    if(ev.listen==='prerequest') req.pre=src;
+    if(ev.listen==='test') req.tests=src;
+  });
+  return req;
+}
+function exportCollection(col){
+  col = col || collections[0];
+  if(!col){ toast('No collection to export'); return; }
+  const out={info:{name:col.name||'Postlite Collection', schema:'https://schema.getpostman.com/json/collection/v2.1.0/collection.json'},
+             item:(col.items||[]).map(toPM)};
+  const vEntries=Object.entries(col.vars||{});
+  if(vEntries.length) out.variable=vEntries.map(([key,value])=>({key,value}));
+  const ca=toPMAuth(col.auth); if(ca) out.auth=ca;
+  download((col.name||'collection')+'.postman_collection.json', JSON.stringify(out,null,2));
+  toast('Exported “'+(col.name||'collection')+'”');
+}
+function toPM(it){
+  if(it.items){ const o={name:it.name, item:it.items.map(toPM)}; const fa=toPMAuth(it.auth); if(fa) o.auth=fa; return o; }
+  const url=it.url||'';
+  const req={method:it.method, header:(it.headers||[]).map(h=>({key:h.key,value:h.value,disabled:h.on===false})),
+             url:{raw:url}};
+  const pa=toPMAuth(it.auth); if(pa) req.auth=pa;
+  if(it.params&&it.params.length) req.url.query=it.params.map(p=>({key:p.key,value:p.value,disabled:p.on===false}));
+  if(it.bodyType==='json'||it.bodyType==='raw'){
+    req.body={mode:'raw', raw:it.bodyText||'', options:{raw:{language:it.bodyType==='json'?'json':'text'}}};
+  }else if(it.bodyType==='form'){
+    req.body={mode:'urlencoded', urlencoded:(it.form||[]).map(f=>({key:f.key,value:f.value,disabled:f.on===false}))};
+  }
+  const event=[];
+  if(it.pre) event.push({listen:'prerequest',script:{exec:it.pre.split('\n')}});
+  const after=[it.post, it.tests].filter(s=>s&&s.trim()).join('\n');
+  if(after) event.push({listen:'test',script:{exec:after.split('\n')}});
+  const o={name:it.name||'Untitled', request:req};
+  if(event.length)o.event=event;
+  return o;
+}
+
+/* ====================================================
+   IMPORT cURL
+   ==================================================== */
+function parseCurl(text){
+  text=text.trim().replace(/\\\r?\n/g,' ').replace(/^curl\s+/i,'');
+  const tokens=tokenizeCurl(text);
+  const req=blankRequest(); req.name='From cURL';
+  let method=null, dataParts=[], isGet=false;
+  for(let i=0;i<tokens.length;i++){
+    let t=tokens[i];
+    const next=()=>tokens[++i];
+    if(t==='-X'||t==='--request'){ method=next().toUpperCase(); }
+    else if(t==='-H'||t==='--header'){ const h=next(); const ci=h.indexOf(':'); if(ci>0) req.headers.push({key:h.slice(0,ci).trim(),value:h.slice(ci+1).trim(),on:true}); }
+    else if(t==='-d'||t==='--data'||t==='--data-raw'||t==='--data-binary'||t==='--data-ascii'){ dataParts.push(next()); }
+    else if(t==='--data-urlencode'){ dataParts.push(next()); }
+    else if(t==='-G'||t==='--get'){ isGet=true; }
+    else if(t==='-u'||t==='--user'){ req.headers.push({key:'Authorization',value:'Basic '+btoa(next()),on:true}); }
+    else if(t==='-A'||t==='--user-agent'){ req.headers.push({key:'User-Agent',value:next(),on:true}); }
+    else if(t==='-b'||t==='--cookie'){ req.headers.push({key:'Cookie',value:next(),on:true}); }
+    else if(t==='-e'||t==='--referer'){ req.headers.push({key:'Referer',value:next(),on:true}); }
+    else if(t==='--url'){ req.url=next(); }
+    else if(t==='--compressed'||t==='-s'||t==='--silent'||t==='-i'||t==='--include'||t==='-k'||t==='--insecure'||t==='-L'||t==='--location'||t==='-v'){ /* ignore */ }
+    else if(t.startsWith('-')){ /* unknown flag, try skip value if not URL */ }
+    else { if(!req.url) req.url=t; }
+  }
+  const data=dataParts.join('&');
+  if(data){
+    if(isGet){ req.url += (req.url.includes('?')?'&':'?')+data; }
+    else { req.bodyText=data; req.bodyType=looksJson(data)?'json':'raw';
+           method=method||'POST'; }
+  }
+  req.method=method||(data&&!isGet?'POST':'GET');
+  return req;
+}
+function tokenizeCurl(s){
+  const out=[]; let cur='', q=null;
+  for(let i=0;i<s.length;i++){
+    const c=s[i];
+    if(q){ if(c===q){q=null} else cur+=c; }
+    else if(c==='"'||c==="'"){ q=c; }
+    else if(c===' '||c==='\t'){ if(cur){out.push(cur);cur=''} }
+    else cur+=c;
+  }
+  if(cur)out.push(cur);
+  return out;
+}
+
+/* ====================================================
+   MODALS
+   ==================================================== */
+function openModal(html){ $('#modal').innerHTML=html; $('#modalBg').classList.add('on'); }
+function closeModal(){ $('#modalBg').classList.remove('on'); }
+$('#modalBg').onclick=e=>{ if(e.target.id==='modalBg')closeModal(); };
+
+// promise-based name prompt
+function askName(title, placeholder, value){
+  return new Promise(res=>{
+    openModal(`<h3>${esc(title)} <button class="close">×</button></h3>
+      <div class="mbody"><div class="field"><input id="askIn" placeholder="${esc(placeholder||'')}" value="${esc(value||'')}"></div></div>
+      <div class="mfoot"><button class="btn" id="askNo">Cancel</button><button class="btn amber" id="askOk">OK</button></div>`);
+    const done=v=>{ closeModal(); res(v); };
+    const inp=$('#askIn');
+    $('#modal .close').onclick=()=>done(null);
+    $('#askNo').onclick=()=>done(null);
+    $('#askOk').onclick=()=>done((inp.value||'').trim()||null);
+    inp.onkeydown=e=>{ if(e.key==='Enter')done((inp.value||'').trim()||null); };
+    setTimeout(()=>{inp.focus();inp.select();},30);
+  });
+}
+// promise-based confirm
+function confirmModal(msg, okLabel){
+  return new Promise(res=>{
+    openModal(`<h3>Confirm <button class="close">×</button></h3>
+      <div class="mbody"><p style="line-height:1.6;margin:0">${esc(msg)}</p></div>
+      <div class="mfoot"><button class="btn" id="cfNo">Cancel</button><button class="btn amber" id="cfYes">${esc(okLabel||'Delete')}</button></div>`);
+    const done=v=>{ closeModal(); res(v); };
+    $('#modal .close').onclick=()=>done(false);
+    $('#cfNo').onclick=()=>done(false);
+    $('#cfYes').onclick=()=>done(true);
+  });
+}
+
+function envModal(){
+  const names=Object.keys(environments);
+  const rows=names.map(n=>`<div class="node"><div class="row">
+     <span class="name">${esc(n)}</span>
+     <button class="btn sm ghost editEnv" data-n="${esc(n)}">edit</button>
+     <button class="btn sm ghost delEnv" data-n="${esc(n)}">✕</button></div></div>`).join('')
+     ||'<div class="empty">No environments yet.</div>';
+  openModal(`<h3>Environments <button class="close">×</button></h3>
+    <div class="mbody">${rows}
+      <div class="field" style="margin-top:14px"><label>New environment name</label>
+      <input id="newEnvName" placeholder="e.g. Robi-Staging"></div></div>
+    <div class="mfoot"><button class="btn" id="addEnvOk">Create</button></div>`);
+  $('#modal .close').onclick=closeModal;
+  $('#addEnvOk').onclick=()=>{const n=$('#newEnvName').value.trim();if(!n)return;
+    if(!environments[n])environments[n]={vars:{}}; activeEnv=n; persist(); refreshEnvSelect(); editEnvVars(n);};
+  $$('#modal .editEnv').forEach(b=>b.onclick=()=>editEnvVars(b.dataset.n));
+  $$('#modal .delEnv').forEach(b=>b.onclick=()=>{delete environments[b.dataset.n];
+    if(activeEnv===b.dataset.n)activeEnv=''; persist(); refreshEnvSelect(); envModal();});
+}
+function editEnvVars(name){
+  const vars=environments[name].vars||{};
+  const rowsHtml=Object.entries(vars).map(([k,v])=>varRow(k,v)).join('');
+  openModal(`<h3>Variables · ${esc(name)} <button class="close">×</button></h3>
+    <div class="mbody"><table class="kv" id="evTable"><thead><tr><th>Key</th><th>Value</th><th class="x"></th></tr></thead>
+    <tbody>${rowsHtml}</tbody></table>
+    <button class="btn sm" id="evAdd" style="margin-top:8px">+ Add variable</button></div>
+    <div class="mfoot"><button class="btn" id="evBack">Back</button><button class="btn amber" id="evSave">Save</button></div>`);
+  $('#modal .close').onclick=closeModal;
+  $('#evAdd').onclick=()=>{$('#evTable tbody').insertAdjacentHTML('beforeend',varRow('',''));bindEvDel();};
+  $('#evBack').onclick=envModal;
+  $('#evSave').onclick=()=>{
+    const nv={};
+    $$('#evTable tbody tr').forEach(tr=>{const[k,v]=tr.querySelectorAll('input');if(k.value.trim())nv[k.value.trim()]=v.value;});
+    environments[name].vars=nv; persist(); refreshEnvSelect(); toast('Saved '+Object.keys(nv).length+' variable(s)'); closeModal();
+  };
+  bindEvDel();
+}
+function varRow(k,v){return `<tr><td><input type="text" value="${esc(k)}" placeholder="key"></td>
+  <td><input type="text" value="${esc(v)}" placeholder="value"></td>
+  <td class="x"><button>✕</button></td></tr>`;}
+function bindEvDel(){$$('#evTable .x button').forEach(b=>b.onclick=()=>b.closest('tr').remove());}
+function bindRowDel(sel){$$(sel+' .x button').forEach(b=>b.onclick=()=>b.closest('tr').remove());}
+
+// Collection settings: name + variables + authorization
+function collSettingsModal(col){
+  openModal(`<h3>Collection · ${esc(col.name)} <button class="close">×</button></h3>
+    <div class="mbody">
+      <div class="field"><label>Name</label><input id="csName" value="${esc(col.name)}"></div>
+      <div class="msub">Variables</div>
+      <table class="kv" id="cvTable"><thead><tr><th>Key</th><th>Value</th><th class="x"></th></tr></thead><tbody></tbody></table>
+      <button class="btn sm" id="cvAdd" style="margin-top:8px">+ Add variable</button>
+      <div class="msub">Authorization</div>
+      <div id="csAuth"></div>
+    </div>
+    <div class="mfoot"><button class="btn" id="csCancel">Cancel</button><button class="btn amber" id="csSave">Save</button></div>`);
+  const tb=$('#cvTable tbody');
+  Object.entries(col.vars||{}).forEach(([k,v])=>tb.insertAdjacentHTML('beforeend',varRow(k,v)));
+  bindRowDel('#cvTable');
+  $('#cvAdd').onclick=()=>{ tb.insertAdjacentHTML('beforeend',varRow('','')); bindRowDel('#cvTable'); };
+  const authWork=JSON.parse(JSON.stringify(col.auth||{type:'noauth'}));
+  buildAuthUI($('#csAuth'), authWork, ()=>{}, false, undefined);   // collection is the root: no inherit
+  $('#modal .close').onclick=closeModal; $('#csCancel').onclick=closeModal;
+  $('#csSave').onclick=()=>{
+    col.name=$('#csName').value.trim()||col.name;
+    const nv={}; $$('#cvTable tbody tr').forEach(tr=>{const[k,v]=tr.querySelectorAll('input');if(k.value.trim())nv[k.value.trim()]=v.value;});
+    col.vars=nv; col.auth=authWork;
+    persist(); renderTree(); refreshAuthIfShown(); toast('Collection saved'); closeModal();
+  };
+}
+// Folder settings: name + authorization (folders inherit by default)
+function folderSettingsModal(folder){
+  openModal(`<h3>Folder · ${esc(folder.name||'Folder')} <button class="close">×</button></h3>
+    <div class="mbody">
+      <div class="field"><label>Name</label><input id="fsName" value="${esc(folder.name||'')}"></div>
+      <div class="msub">Authorization</div>
+      <div id="fsAuth"></div>
+    </div>
+    <div class="mfoot"><button class="btn" id="fsCancel">Cancel</button><button class="btn amber" id="fsSave">Save</button></div>`);
+  const authWork=JSON.parse(JSON.stringify(folder.auth||{type:'inherit'}));
+  buildAuthUI($('#fsAuth'), authWork, ()=>{}, true, undefined);
+  $('#modal .close').onclick=closeModal; $('#fsCancel').onclick=closeModal;
+  $('#fsSave').onclick=()=>{
+    folder.name=$('#fsName').value.trim()||folder.name;
+    folder.auth=authWork;
+    persist(); renderTree(); refreshAuthIfShown(); toast('Folder saved'); closeModal();
+  };
+}
+// if the request Auth pane is on "inherit", refresh its note after parent auth changes
+function refreshAuthIfShown(){
+  if(current.auth && (current.auth.type==='inherit'))
+    buildAuthUI($('#authHost'), current.auth, ()=>{ updateAuthBadge(); touch(); }, true, activeTab().srcId);
+}
+
+function saveReqModal(){
+  pullUI();
+  if(!collections.length){ collections.push({id:uid(),name:'My Collection',items:[]}); persist(); }
+  const colOpts=collections.map((c,i)=>`<option value="${i}">${esc(c.name)}</option>`).join('');
+  openModal(`<h3>Save request <button class="close">×</button></h3>
+    <div class="mbody">
+      <div class="field"><label>Request name</label><input id="srName" value="${esc(current.name||'Untitled')}"></div>
+      <div class="field"><label>Collection</label><select id="srColl" class="url" style="width:100%">${colOpts}</select></div>
+      <div class="field"><label>Folder</label><select id="srFolder" class="url" style="width:100%"></select></div>
+      <div class="field"><label>Or new folder (optional)</label><input id="srNewFolder" placeholder="leave blank to skip"></div>
+    </div>
+    <div class="mfoot"><button class="btn amber" id="srOk">Save</button></div>`);
+  $('#modal .close').onclick=closeModal;
+  const fillFolders=()=>{
+    const ci=+$('#srColl').value;
+    const fl=folderList(collections[ci].items, [], 0);
+    $('#srFolder').innerHTML='<option value="">— top level —</option>'+
+      fl.map(f=>`<option value="${f.path.join(',')}">${esc(f.label)}</option>`).join('');
+  };
+  $('#srColl').onchange=fillFolders; fillFolders();
+  $('#srOk').onclick=()=>{
+    current.name=$('#srName').value.trim()||'Untitled';
+    const ci=+$('#srColl').value;
+    let target=collections[ci].items;
+    const sel=$('#srFolder').value;
+    if(sel!=='') target=folderByPath(collections[ci].items, sel.split(',').map(Number));
+    const nf=$('#srNewFolder').value.trim();
+    if(nf){ const folder={id:uid(),name:nf,items:[]}; target.push(folder); target=folder.items; }
+    const item=JSON.parse(JSON.stringify(current));
+    target.push(item);
+    const t=activeTab(); if(t){ t.srcId=item.id; t.dirty=false; }
+    persist(); renderTree(); renderTabs(); syncTreeActive(); toast('Saved “'+current.name+'”'); closeModal();
+  };
+}
+// folder discovery by index path
+function folderList(items, prefix, depth){
+  let out=[];
+  items.forEach((it,i)=>{ if(it.items){ const path=prefix.concat(i);
+    out.push({path, label:(depth?'\u00A0\u00A0'.repeat(depth):'')+'› '+(it.name||'Folder')});
+    out=out.concat(folderList(it.items, path, depth+1)); } });
+  return out;
+}
+function folderByPath(items, path){ let arr=items, node=null;
+  path.forEach(i=>{ node=arr[i]; arr=node.items; }); return node.items; }
+
+function curlModal(){
+  openModal(`<h3>Import cURL <button class="close">×</button></h3>
+    <div class="mbody"><div class="field"><label>Paste a cURL command</label>
+    <textarea id="curlIn" rows="8" placeholder="curl -X POST https://... -H 'Authorization: Bearer ...' -d '{...}'"></textarea></div>
+    <p class="hint">Supports <code>-X -H -d --data-raw --data-urlencode -G -u -A -b --url</code>.<br>
+    “Load” drops it into the editor; “Import &amp; Save” also stores it in a collection.</p></div>
+    <div class="mfoot"><button class="btn" id="curlLoad">Load to editor</button><button class="btn amber" id="curlSave">Import &amp; Save…</button></div>`);
+  $('#modal .close').onclick=closeModal;
+  const parse=()=>{ const v=$('#curlIn').value.trim(); if(!v){toast('Paste a cURL command');return null;} return parseCurl(v); };
+  $('#curlLoad').onclick=()=>{ const r=parse(); if(!r)return; openInTab(r,null); closeModal(); toast('cURL imported'); };
+  $('#curlSave').onclick=()=>{ const r=parse(); if(!r)return; openInTab(r,null); saveReqModal(); };
+}
+
+/* ====================================================
+   PULL UI -> current
+   ==================================================== */
+function pullUI(){
+  current.method=$('#method').value;
+  current.url=$('#url').value;
+  current.bodyText=$('#bodyText').value;
+  current.pre=$('#preScript').value;
+  current.post=$('#postScript').value;
+  current.tests=$('#testScript').value;
+  persist();
+}
+
+/* ====================================================
+   WIRING
+   ==================================================== */
+function refreshEnvSelect(){
+  const sel=$('#envSelect'); sel.innerHTML='<option value="">No environment</option>'+
+    Object.keys(environments).map(n=>`<option value="${esc(n)}" ${n===activeEnv?'selected':''}>${esc(n)}</option>`).join('');
+}
+function switchResp(rt){
+  $$('.resp-tabs button').forEach(b=>b.classList.toggle('on',b.dataset.rt===rt));
+  $$('.resp-pane').forEach(p=>p.classList.toggle('on',p.dataset.rp===rt));
+}
+function download(name,text){
+  const blob=new Blob([text],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+
+/* ====================================================
+   LAYOUT · ZOOM · COPY · CURL EXPORT
+   ==================================================== */
+function makeDrag(handle, onMove){
+  handle.addEventListener('mousedown', e=>{
+    e.preventDefault(); handle.classList.add('drag');
+    document.body.style.userSelect='none';
+    const move=ev=>onMove(ev);
+    const up=()=>{ handle.classList.remove('drag'); document.body.style.userSelect='';
+      document.removeEventListener('mousemove',move); document.removeEventListener('mouseup',up); persistUI(); };
+    document.addEventListener('mousemove',move); document.addEventListener('mouseup',up);
+  });
+}
+function initLayout(){
+  applyUI();
+  makeDrag($('#sideSplit'), e=>{
+    const ar=document.querySelector('.app').getBoundingClientRect();
+    let f=(e.clientX-ar.left)/ar.width; f=Math.max(0.12,Math.min(0.42,f));
+    ui.sideFrac=f; $('#side').style.width=(f*100)+'%';
+  });
+  makeDrag($('#respSplit'), e=>{
+    const ws=$('#workspace').getBoundingClientRect();
+    let f = ui.layout==='row' ? (ws.right-e.clientX)/ws.width : (ws.bottom-e.clientY)/ws.height;
+    f=Math.max(0.12,Math.min(0.9,f));
+    ui.respFrac=f; $('#resp').style.flexBasis=(f*100)+'%';
+  });
+  $('#layoutBtn').onclick=()=>{ ui.layout = ui.layout==='row'?'col':'row';
+    $('#workspace').classList.toggle('row-layout', ui.layout==='row');
+    $('#layoutBtn').textContent = ui.layout==='row'?'⬌':'⬍';
+    $('#resp').style.flexBasis=(ui.respFrac*100)+'%'; persistUI(); };
+  $('#zoomIn').onclick=()=>setZoom((ui.zoom||1)+0.1);
+  $('#zoomOut').onclick=()=>setZoom((ui.zoom||1)-0.1);
+  $('#copyRespBtn').onclick=copyResponse;
+  $('#curlOutBtn').onclick=curlOutModal;
+  $('#proxyBtn').onclick=proxyModal; updateProxyBtn();
+}
+function setZoom(z){ ui.zoom=Math.max(0.5,Math.min(2,Math.round(z*10)/10));
+  document.documentElement.style.setProperty('--z', ui.zoom); $('#zoomLbl').textContent=Math.round(ui.zoom*100)+'%'; persistUI(); }
+function copyText(t){
+  if(!t){ toast('Nothing to copy'); return; }
+  if(navigator.clipboard&&navigator.clipboard.writeText)
+    navigator.clipboard.writeText(t).then(()=>toast('Copied')).catch(()=>fallbackCopy(t));
+  else fallbackCopy(t);
+}
+function fallbackCopy(t){ const ta=document.createElement('textarea'); ta.value=t;
+  ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select();
+  try{ document.execCommand('copy'); toast('Copied'); }catch(e){ toast('Copy failed'); } ta.remove(); }
+function copyResponse(){
+  const active=document.querySelector('.resp-pane.on');
+  if(!active){ toast('Nothing to copy'); return; }
+  const pre=active.querySelector('pre');
+  copyText(pre ? pre.textContent : active.textContent.trim());
+}
+// build a runnable cURL from the current request (variables resolved)
+function toCurlString(){
+  pullUI();
+  const method=current.method;
+  const headers=buildHeaders();
+  const body=buildBody(headers);
+  const auth=effectiveAuth(current, activeTab().srcId);
+  const aq=applyAuth(auth, headers);
+  let url=buildUrl();
+  if(aq.length){ url += (url.includes('?')?'&':'?')+aq.map(p=>encodeURIComponent(p.key)+'='+encodeURIComponent(p.value)).join('&'); }
+  const q=s=>"'"+String(s).replace(/'/g,"'\\''")+"'";
+  const parts=['curl --location'];
+  if(method!=='GET') parts.push('--request '+method);
+  parts.push(q(url));
+  Object.entries(headers).forEach(([k,v])=>parts.push('--header '+q(k+': '+v)));
+  if(body!==undefined && body!=='') parts.push('--data '+q(body));
+  return parts.join(' \\\n  ');
+}
+function curlOutModal(){
+  const code=toCurlString();
+  openModal(`<h3>Copy as cURL <button class="close">×</button></h3>
+    <div class="mbody"><textarea class="code" id="curlOut" style="min-height:200px" readonly spellcheck="false">${esc(code)}</textarea>
+    <p class="hint">Variables resolved with the active environment + collection variables. Paste into a terminal, or import elsewhere.</p></div>
+    <div class="mfoot"><button class="btn" id="curlOutClose">Close</button><button class="btn amber" id="curlOutCopy">Copy</button></div>`);
+  $('#modal .close').onclick=closeModal; $('#curlOutClose').onclick=closeModal;
+  $('#curlOutCopy').onclick=()=>copyText($('#curlOut').value);
+  setTimeout(()=>{const t=$('#curlOut');t.focus();t.select();},30);
+}
+function updateProxyBtn(){
+  const b=$('#proxyBtn'); if(!b) return;
+  b.textContent='Proxy: '+(proxy.on?'on':'off');
+  b.style.borderColor = proxy.on?'var(--teal)':'';
+  b.style.color = proxy.on?'var(--teal)':'';
+}
+function proxyModal(){
+  openModal(`<h3>Local CORS proxy <button class="close">×</button></h3>
+    <div class="mbody">
+      <p class="hint">Routes requests through a tiny local proxy running on this machine. The proxy
+      reaches the API server-side (no browser CORS) and adds CORS headers, so Postlite works in <b>any
+      normal browser, normal profile</b> — no Chrome flag, nothing to close. The proxy must run on the
+      machine that has the VPN.</p>
+      <div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="pxOn" ${proxy.on?'checked':''} style="width:auto"> Route requests through local proxy</label></div>
+      <div class="field"><label>Proxy URL</label><input id="pxUrl" value="${esc(proxy.url)}" placeholder="http://localhost:8010"></div>
+      <p class="hint">Start it once: double-click <code>Proxy.bat</code>, or run <code>python proxy.py</code> in the
+      Postlite folder. It prints the port (default 8010). Keep that window open while testing.</p>
+    </div>
+    <div class="mfoot"><button class="btn" id="pxCancel">Cancel</button><button class="btn amber" id="pxSave">Save</button></div>`);
+  $('#modal .close').onclick=closeModal; $('#pxCancel').onclick=closeModal;
+  $('#pxSave').onclick=()=>{
+    proxy.on=$('#pxOn').checked; proxy.url=$('#pxUrl').value.trim()||'http://localhost:8010';
+    persist(); updateProxyBtn(); toast(proxy.on?'Proxy on':'Proxy off'); closeModal();
+  };
+}
+
+function init(){
+  collections.forEach(c=>{ if(!c.id)c.id=uid(); ensureIds(c.items); });
+  initLayout();
+  renderTabs(); loadToUI(); refreshEnvSelect(); renderTree(); renderHistory();
+
+  // request tabs
+  $$('#reqTabs button').forEach(b=>b.onclick=()=>{ $$('#reqTabs button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on'); $$('.pane').forEach(p=>p.classList.toggle('on',p.dataset.pane===b.dataset.tab)); });
+  // response tabs
+  $$('.resp-tabs button').forEach(b=>b.onclick=()=>switchResp(b.dataset.rt));
+  // sidebar view tabs
+  $$('.tabs button').forEach(b=>b.onclick=()=>{ $$('.tabs button').forEach(x=>x.classList.remove('on')); b.classList.add('on');
+    const coll=b.dataset.view==='collections';
+    $('#treeWrap').style.display=coll?'block':'none'; $('#collActions').style.display=coll?'flex':'none';
+    $('#historyWrap').style.display=coll?'none':'block'; if(!coll)renderHistory(); });
+
+  // body type
+  $$('#bodySeg button').forEach(b=>b.onclick=()=>setBodyType(b.dataset.bt));
+  $('#prettyBtn').onclick=()=>{ try{ $('#bodyText').value=JSON.stringify(JSON.parse($('#bodyText').value),null,2); current.bodyText=$('#bodyText').value; touch(); }catch(e){toast('Not valid JSON')} };
+
+  // inputs (each edit marks the active tab dirty)
+  $('#method').onchange=()=>{current.method=$('#method').value;renderTabs();touch()};
+  $('#url').oninput=()=>{current.url=$('#url').value;touch()};
+  $('#bodyText').oninput=()=>{current.bodyText=$('#bodyText').value;touch()};
+  $('#preScript').oninput=()=>{current.pre=$('#preScript').value;touch()};
+  $('#postScript').oninput=()=>{current.post=$('#postScript').value;touch()};
+  $('#testScript').oninput=()=>{current.tests=$('#testScript').value;touch()};
+
+  // add rows
+  $('#addParam').onclick=()=>{current.params.push({key:'',value:'',on:true});renderKV('#paramsTable',current.params,syncParams);touch();};
+  $('#addHeader').onclick=()=>{current.headers.push({key:'',value:'',on:true});renderKV('#headersTable',current.headers,syncHeaders);touch();};
+  $('#addForm').onclick=()=>{current.form.push({key:'',value:'',on:true});renderKV('#formTable',current.form,()=>touch());touch();};
+
+  // actions
+  $('#sendBtn').onclick=send;
+  $('#saveReqBtn').onclick=saveActive;
+  $('#newReqBtn').onclick=()=>{ newBlankTab(); toast('New request'); };
+  $('#newCollBtn').onclick=async()=>{ const n=await askName('New collection name','e.g. Robi SFA');
+    if(n){ collections.push({id:uid(),name:n,items:[]}); persist(); renderTree(); toast('Collection created'); } };
+  $('#editEnvBtn').onclick=envModal;
+  $('#envSelect').onchange=()=>{activeEnv=$('#envSelect').value;persist();toast(activeEnv?('Env: '+activeEnv):'No environment');};
+  $('#importCurlBtn').onclick=curlModal;
+  $('#importCollBtn').onclick=()=>{ $('#fileInput').onchange=e=>{const f=e.target.files[0];if(!f)return;
+    const r=new FileReader(); r.onload=()=>importFile(r.result); r.readAsText(f); e.target.value='';};
+    $('#fileInput').click(); };
+
+  // keyboard: Ctrl/Cmd+Enter sends · Ctrl/Cmd+S saves
+  document.addEventListener('keydown',e=>{
+    if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();send();}
+    if((e.ctrlKey||e.metaKey)&&(e.key==='s'||e.key==='S')){e.preventDefault();saveActive();}
+    if((e.ctrlKey||e.metaKey)&&(e.key==='='||e.key==='+')){e.preventDefault();setZoom((ui.zoom||1)+0.1);}
+    if((e.ctrlKey||e.metaKey)&&e.key==='-'){e.preventDefault();setZoom((ui.zoom||1)-0.1);}
+    if((e.ctrlKey||e.metaKey)&&e.key==='0'){e.preventDefault();setZoom(1);}
+    if(e.key==='Escape')closeModal(); });
+}
+init();
+</script>
+</body>
+</html>
