@@ -1,9 +1,25 @@
 # Postlite — Windows setup
 
-Postlite is a single self-contained HTML file. To make it behave like an
-installed app **and** bypass browser CORS for internal/VPN APIs, launch it in
-Chrome **app mode** with web security disabled. The included launcher does this
-for you.
+## Install as a desktop app (recommended)
+
+1. Put all the Postlite files in a permanent folder, e.g. `C:\Tools\Postlite\`.
+2. Double-click **`Install-Postlite.bat`**.
+
+That creates a **Postlite** icon on your Desktop and in the Start Menu (search
+"Postlite"). Launching it runs `Postlite.bat` by default — Postlite opens in its
+own app window (no tabs/address bar) with web security disabled, using an
+isolated profile next to the files, so your normal Chrome is untouched and you
+don't have to close anything.
+
+- **Pin to taskbar:** launch it once, right-click its taskbar icon → *Pin to taskbar*.
+- **Remove the app shortcuts:** run `Uninstall-Postlite.bat` (your files stay).
+
+> Note on "PWA": a true browser *Install* needs the page served over
+> `http://localhost`/HTTPS with a service worker, which `file://` can't do and
+> which can't use `--disable-web-security`. The shortcut above gives you the same
+> installed-desktop-app experience while keeping the CORS bypass. If you prefer a
+> real PWA install instead, serve the folder over `http://localhost` and use the
+> local proxy (below) for VPN APIs.
 
 ## Files (keep them together in one folder)
 
