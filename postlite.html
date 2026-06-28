@@ -128,6 +128,11 @@
   textarea.code{width:100%;min-height:240px;background:var(--panel-2);border:1px solid var(--line);border-radius:var(--radius);padding:11px;font-family:var(--mono);font-size:12.5px;line-height:1.55;resize:vertical;tab-size:2}
   textarea.code:focus{outline:none;border-color:var(--amber)}
   .bodytype{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+  .mp-type{background:var(--panel-2);border:1px solid var(--line);border-radius:6px;padding:5px 6px;font-size:12px;color:var(--ink)}
+  .mp-file{display:flex;align-items:center;gap:6px}
+  .mp-file .pick{white-space:nowrap}
+  .mp-file .fname{font-family:var(--mono);font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px}
+  .mp-file .fname.missing{color:var(--amber)}
   .seg{display:flex;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
   .seg button{background:var(--panel-2);border:0;color:var(--muted);padding:6px 11px;cursor:pointer;border-right:1px solid var(--line)}
   .seg button:last-child{border-right:0}
@@ -269,12 +274,16 @@
             <button data-bt="json">JSON</button>
             <button data-bt="raw">Raw</button>
             <button data-bt="form">x-www-form</button>
+            <button data-bt="multipart">form-data</button>
           </div>
           <button class="btn sm ghost" id="prettyBtn">Beautify JSON</button>
         </div>
         <textarea class="code" id="bodyText" placeholder='{ "key": "value" }' spellcheck="false"></textarea>
         <table class="kv" id="formTable" style="display:none"><thead><tr><th class="chk"></th><th>Key</th><th>Value</th><th class="x"></th></tr></thead><tbody></tbody></table>
         <button class="btn sm" id="addForm" style="display:none;margin-top:8px">+ Add field</button>
+        <table class="kv" id="multipartTable" style="display:none"><thead><tr><th class="chk"></th><th>Key</th><th>Type</th><th>Value</th><th class="x"></th></tr></thead><tbody></tbody></table>
+        <button class="btn sm" id="addMultipart" style="display:none;margin-top:8px">+ Add field</button>
+        <input type="file" id="mpFileInput" style="display:none">
       </div>
 
       <div class="pane" data-pane="pre">
@@ -392,7 +401,7 @@ function activeTab(){ return tabs.find(t=>t.id===activeTabId) || tabs[0]; }
 
 function blankRequest(){
   return {id:uid(), name:'Untitled', method:'GET', url:'', params:[], headers:[],
-          bodyType:'none', bodyText:'', form:[], pre:'', post:'', tests:'', auth:{type:'inherit'}};
+          bodyType:'none', bodyText:'', form:[], multipart:[], pre:'', post:'', tests:'', auth:{type:'inherit'}};
 }
 function persist(){
   LS.set('PL_collections',collections); LS.set('PL_envs',environments);
@@ -445,6 +454,55 @@ function renderKV(tableSel, list, onChange){
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 function activeCount(list){return list.filter(r=>r.on!==false&&(r.key||'').trim()).length}
 
+/* ---- multipart / form-data ---- */
+// actual File objects live in memory only (not persisted), keyed by row id
+const fileBlobs = {};
+function renderMultipart(){
+  const tb=$('#multipartTable tbody'); tb.innerHTML='';
+  (current.multipart||[]).forEach((row,i)=>{
+    if(!row.id) row.id=uid();
+    if(!row.type) row.type='text';
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td class="chk"><input type="checkbox" ${row.on!==false?'checked':''}></td>
+      <td><input type="text" placeholder="key" value="${esc(row.key||'')}"></td>
+      <td><select class="mp-type"><option value="text" ${row.type==='text'?'selected':''}>Text</option><option value="file" ${row.type==='file'?'selected':''}>File</option></select></td>
+      <td class="mp-val"></td>
+      <td class="x"><button title="remove">✕</button></td>`;
+    const chk=tr.querySelector('.chk input');
+    const keyIn=tr.querySelector('td:nth-child(2) input');
+    const typeSel=tr.querySelector('.mp-type');
+    const valCell=tr.querySelector('.mp-val');
+    chk.onchange=()=>{row.on=chk.checked;touch()};
+    keyIn.oninput=()=>{row.key=keyIn.value;touch()};
+    typeSel.onchange=()=>{row.type=typeSel.value; if(row.type==='text'){delete fileBlobs[row.id]; row.filename='';} renderValCell(); touch();};
+    function renderValCell(){
+      valCell.innerHTML='';
+      if(row.type==='file'){
+        const wrap=document.createElement('div'); wrap.className='mp-file';
+        const pick=document.createElement('button'); pick.className='btn sm pick'; pick.textContent='Choose file';
+        const name=document.createElement('span'); name.className='fname';
+        const hasFile=!!fileBlobs[row.id];
+        name.textContent = row.filename ? (hasFile? row.filename : row.filename+' (re-select)') : 'no file';
+        if(row.filename && !hasFile) name.classList.add('missing');
+        pick.onclick=()=>{
+          const fi=$('#mpFileInput'); fi.value='';
+          fi.onchange=()=>{ const f=fi.files[0]; if(f){ fileBlobs[row.id]=f; row.filename=f.name; renderValCell(); touch(); } };
+          fi.click();
+        };
+        wrap.appendChild(pick); wrap.appendChild(name); valCell.appendChild(wrap);
+      }else{
+        const v=document.createElement('input'); v.type='text'; v.placeholder='value'; v.value=row.value||'';
+        v.style.width='100%'; v.oninput=()=>{row.value=v.value;touch()};
+        valCell.appendChild(v);
+      }
+    }
+    renderValCell();
+    tr.querySelector('.x button').onclick=()=>{ delete fileBlobs[row.id]; current.multipart.splice(i,1); renderMultipart(); touch(); };
+    tb.appendChild(tr);
+  });
+}
+
 /* ====================================================
    LOAD current request -> UI  /  UI -> current
    ==================================================== */
@@ -454,6 +512,7 @@ function loadToUI(){
   renderKV('#paramsTable',current.params,syncParams);
   renderKV('#headersTable',current.headers,syncHeaders);
   renderKV('#formTable',current.form,()=>{touch()});
+  if(!current.multipart) current.multipart=[];
   $('#bodyText').value=current.bodyText||'';
   $('#preScript').value=current.pre||'';
   $('#postScript').value=current.post||'';
@@ -482,9 +541,13 @@ function setBodyType(bt,save=true){
   current.bodyType=bt;
   $$('#bodySeg button').forEach(b=>b.classList.toggle('on',b.dataset.bt===bt));
   const isForm = bt==='form';
-  $('#bodyText').style.display = (bt==='none'||isForm)?'none':'block';
+  const isMp = bt==='multipart';
+  $('#bodyText').style.display = (bt==='none'||isForm||isMp)?'none':'block';
   $('#formTable').style.display = isForm?'table':'none';
   $('#addForm').style.display = isForm?'inline-flex':'none';
+  $('#multipartTable').style.display = isMp?'table':'none';
+  $('#addMultipart').style.display = isMp?'inline-flex':'none';
+  if(isMp) renderMultipart();
   if(bt==='json') $('#bodyText').placeholder='{ "key": "value" }';
   if(bt==='raw') $('#bodyText').placeholder='raw body (text, xml, ...)';
   if(save)touch();
@@ -612,8 +675,20 @@ function buildBody(headers){
     return current.form.filter(f=>f.on!==false&&(f.key||'').trim())
       .map(f=>encodeURIComponent(resolve(f.key))+'='+encodeURIComponent(resolve(f.value||''))).join('&');
   }
+  if(bt==='multipart'){
+    // remove any manual content-type so the browser sets multipart boundary
+    removeHeader(headers,'content-type');
+    const fd=new FormData();
+    (current.multipart||[]).filter(r=>r.on!==false&&(r.key||'').trim()).forEach(r=>{
+      const k=resolve(r.key);
+      if(r.type==='file'){ const f=fileBlobs[r.id]; if(f) fd.append(k, f, r.filename||f.name); }
+      else fd.append(k, resolve(r.value||''));
+    });
+    return fd;
+  }
 }
 function hasHeader(h,name){return Object.keys(h).some(k=>k.toLowerCase()===name)}
+function removeHeader(h,name){Object.keys(h).forEach(k=>{if(k.toLowerCase()===name.toLowerCase())delete h[k]});}
 
 async function send(){
   pullUI();
@@ -1051,8 +1126,9 @@ function convertItem(it){
       req.bodyType='form';
       req.form=(r.body.urlencoded||[]).map(f=>({key:f.key,value:f.value,on:!f.disabled}));
     }else if(r.body.mode==='formdata'){
-      req.bodyType='form';
-      req.form=(r.body.formdata||[]).map(f=>({key:f.key,value:f.value,on:!f.disabled}));
+      req.bodyType='multipart';
+      req.multipart=(r.body.formdata||[]).map(f=>({id:uid(), key:f.key, type:(f.type==='file'?'file':'text'),
+        value:f.value||'', filename:(f.type==='file'? (Array.isArray(f.src)?f.src[0]:f.src)||'' : ''), on:!f.disabled}));
     }
   }
   // scripts
@@ -1085,6 +1161,12 @@ function toPM(it){
     req.body={mode:'raw', raw:it.bodyText||'', options:{raw:{language:it.bodyType==='json'?'json':'text'}}};
   }else if(it.bodyType==='form'){
     req.body={mode:'urlencoded', urlencoded:(it.form||[]).map(f=>({key:f.key,value:f.value,disabled:f.on===false}))};
+  }else if(it.bodyType==='multipart'){
+    req.body={mode:'formdata', formdata:(it.multipart||[]).map(f=>{
+      const o={key:f.key, type:(f.type==='file'?'file':'text'), disabled:f.on===false};
+      if(f.type==='file'){ if(f.filename) o.src=f.filename; } else { o.value=f.value||''; }
+      return o;
+    })};
   }
   const event=[];
   if(it.pre) event.push({listen:'prerequest',script:{exec:it.pre.split('\n')}});
@@ -1426,7 +1508,14 @@ function toCurlString(){
   if(method!=='GET') parts.push('--request '+method);
   parts.push(q(url));
   Object.entries(headers).forEach(([k,v])=>parts.push('--header '+q(k+': '+v)));
-  if(body!==undefined && body!=='') parts.push('--data '+q(body));
+  if(current.bodyType==='multipart'){
+    (current.multipart||[]).filter(r=>r.on!==false&&(r.key||'').trim()).forEach(r=>{
+      if(r.type==='file') parts.push('--form '+q(resolve(r.key)+'=@'+(r.filename||'/path/to/file')));
+      else parts.push('--form '+q(resolve(r.key)+'='+resolve(r.value||'')));
+    });
+  } else if(typeof body==='string' && body!=='') {
+    parts.push('--data '+q(body));
+  }
   return parts.join(' \\\n  ');
 }
 function curlOutModal(){
@@ -1498,6 +1587,7 @@ function init(){
   $('#addParam').onclick=()=>{current.params.push({key:'',value:'',on:true});renderKV('#paramsTable',current.params,syncParams);touch();};
   $('#addHeader').onclick=()=>{current.headers.push({key:'',value:'',on:true});renderKV('#headersTable',current.headers,syncHeaders);touch();};
   $('#addForm').onclick=()=>{current.form.push({key:'',value:'',on:true});renderKV('#formTable',current.form,()=>touch());touch();};
+  $('#addMultipart').onclick=()=>{ if(!current.multipart)current.multipart=[]; current.multipart.push({id:uid(),key:'',type:'text',value:'',on:true}); renderMultipart(); touch(); };
 
   // actions
   $('#sendBtn').onclick=send;
